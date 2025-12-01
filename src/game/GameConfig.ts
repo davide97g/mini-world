@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { GameScene } from "./GameScene";
+import { PreloaderScene } from "./PreloaderScene";
 
 export const createGameConfig = (
   parent: string
@@ -15,5 +16,5 @@ export const createGameConfig = (
       gravity: { y: 0, x: 0 },
     },
   },
-  scene: GameScene,
+  scene: [PreloaderScene, GameScene],
 });
