@@ -11,7 +11,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&daily=sunrise,sunset&timezone=auto`;
     const response = await fetch(url);
 
     if (!response.ok) {
@@ -23,7 +23,10 @@ export async function GET(req: Request) {
 
     const data = await response.json();
     
-    return Response.json(data.current_weather);
+    return Response.json({
+      ...data.current_weather,
+      daily: data.daily
+    });
   } catch (error) {
     return Response.json(
       { error: "Internal server error" },

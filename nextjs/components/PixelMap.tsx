@@ -8,6 +8,7 @@ const PIXEL_SIZE = 32; // downscale before pixelating
 const TILE_SIZE = 256; // OSM default
 const WEATHER_ICON_SIZE = 64; // pixel-art icon size
 const WEATHER_ICON_POS = { x: 20, y: 20 }; // position on canvas
+const CANVAS_SIZE = TILE_SIZE * 3;
 
 interface WeatherData {
   temperature: number;
@@ -15,6 +16,28 @@ interface WeatherData {
   winddirection: number;
   weathercode: number;
   time: string;
+  daily?: {
+    sunrise: string[];
+    sunset: string[];
+  };
+}
+
+interface Particle {
+  x: number;
+  y: number;
+  speed: number;
+}
+
+interface Cloud {
+  x: number;
+  y: number;
+  speed: number;
+}
+
+interface LoadedTile {
+  col: number;
+  row: number;
+  img: HTMLCanvasElement;
 }
 
 // Map weather codes to icon filenames
@@ -31,7 +54,22 @@ export default function PixelMap() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [pos, setPos] = useState<{ lat: number; lon: number } | null>(null);
   const [weather, setWeather] = useState<WeatherData | null>(null);
+  
+  // Refs for animation loop to avoid stale closures
+  const weatherRef = useRef<WeatherData | null>(null);
+  const loadedTilesRef = useRef<LoadedTile[]>([]);
   const weatherIconRef = useRef<HTMLImageElement | null>(null);
+  const cloudImageRef = useRef<HTMLImageElement | null>(null);
+  
+  // Particle systems
+  const raindropsRef = useRef<Particle[]>([]);
+  const snowflakesRef = useRef<Particle[]>([]);
+  const cloudsRef = useRef<Cloud[]>([]);
+
+  // Update refs when state changes
+  useEffect(() => {
+    weatherRef.current = weather;
+  }, [weather]);
 
   // 1️⃣ Get user location
   useEffect(() => {
@@ -63,114 +101,207 @@ export default function PixelMap() {
     fetchWeather();
   }, [pos]);
 
-  // 3️⃣ Load weather icon
+  // 3️⃣ Load assets (Weather Icon & Cloud)
   useEffect(() => {
     if (!weather) return;
 
+    // Load Weather Icon
     const iconName = getWeatherIconName(weather.weathercode);
     const img = new Image();
     img.src = `/weather/${iconName}.png`;
     img.onload = () => {
       weatherIconRef.current = img;
-      // Trigger redraw when icon loads
-      if (canvasRef.current && pos) {
-        drawWeatherIcon(canvasRef.current, img);
-      }
     };
-    img.onerror = () => {
-      console.warn(`Weather icon not found: /weather/${iconName}.png`);
-    };
-  }, [weather, pos]);
 
-  // 4️⃣ Draw pixel-art map
+    // Load Cloud Image
+    const cloudImg = new Image();
+    cloudImg.src = "/weather/cloudy.png"; // Using cloudy.png as the sprite
+    cloudImg.onload = () => {
+      cloudImageRef.current = cloudImg;
+    };
+
+  }, [weather]);
+
+  // Initialize Particles
+  useEffect(() => {
+    // Raindrops
+    raindropsRef.current = Array.from({ length: 50 }, () => ({
+      x: Math.random() * CANVAS_SIZE,
+      y: Math.random() * CANVAS_SIZE,
+      speed: 2 + Math.random() * 2
+    }));
+
+    // Snowflakes
+    snowflakesRef.current = Array.from({ length: 40 }, () => ({
+      x: Math.random() * CANVAS_SIZE,
+      y: Math.random() * CANVAS_SIZE,
+      speed: 1 + Math.random() * 1
+    }));
+
+    // Clouds
+    cloudsRef.current = Array.from({ length: 3 }, () => ({
+      x: Math.random() * CANVAS_SIZE,
+      y: Math.random() * (CANVAS_SIZE / 2), // Top half
+      speed: 0.5 + Math.random() * 0.5
+    }));
+  }, []);
+
+  // 4️⃣ Load Map Tiles
   useEffect(() => {
     if (!pos) return;
-
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.imageSmoothingEnabled = false;
 
     const { x, y } = latLonToTile(pos.lat, pos.lon, ZOOM);
 
     const tilesToLoad = [
-      [x - 1, y - 1],
-      [x, y - 1],
-      [x + 1, y - 1],
-      [x - 1, y],
-      [x, y],
-      [x + 1, y],
-      [x - 1, y + 1],
-      [x, y + 1],
-      [x + 1, y + 1],
+      [x - 1, y - 1], [x, y - 1], [x + 1, y - 1],
+      [x - 1, y],     [x, y],     [x + 1, y],
+      [x - 1, y + 1], [x, y + 1], [x + 1, y + 1],
     ];
 
-    // Capture canvas dimensions and context to avoid closure issues
-    const canvasWidth = canvas.width;
-    const canvasHeight = canvas.height;
-    const context: CanvasRenderingContext2D = ctx; // Type assertion after null check
-
-    async function draw() {
-      context.clearRect(0, 0, canvasWidth, canvasHeight);
-
+    async function loadTiles() {
+      const newTiles: LoadedTile[] = [];
+      
       for (let i = 0; i < tilesToLoad.length; i++) {
         const [tx, ty] = tilesToLoad[i];
-
         const img = await loadTile(tx, ty, ZOOM);
-        if (!img) continue;
+        if (img) {
+          const pixelated = pixelate(img);
+          const col = i % 3;
+          const row = Math.floor(i / 3);
+          newTiles.push({ col, row, img: pixelated });
+        }
+      }
+      loadedTilesRef.current = newTiles;
+    }
 
-        const pixelated = pixelate(img);
+    loadTiles();
+  }, [pos]);
 
-        const col = i % 3;
-        const row = Math.floor(i / 3);
+  // 5️⃣ Animation Loop
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.imageSmoothingEnabled = false;
 
-        context.drawImage(
-          pixelated,
-          col * TILE_SIZE,
-          row * TILE_SIZE,
+    let animationFrameId: number;
+
+    const render = () => {
+      // Clear canvas
+      ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+      // Draw Map Tiles
+      loadedTilesRef.current.forEach(tile => {
+        ctx.drawImage(
+          tile.img,
+          tile.col * TILE_SIZE,
+          tile.row * TILE_SIZE,
           TILE_SIZE,
           TILE_SIZE
         );
+      });
+
+      const currentWeather = weatherRef.current;
+      if (currentWeather) {
+        const code = currentWeather.weathercode;
+        
+        // Determine active effects
+        const enableRain = [51,53,55,61,63,65,80,81,82].includes(code);
+        const enableSnow = [71,73,75,77,85,86].includes(code);
+        const enableClouds = [1, 2, 3].includes(code);
+        
+        // Render Effects
+        if (enableRain) renderRain(ctx, raindropsRef.current);
+        if (enableSnow) renderSnow(ctx, snowflakesRef.current);
+        if (enableClouds && cloudImageRef.current) renderClouds(ctx, cloudsRef.current, cloudImageRef.current);
+
+        // Draw Weather Icon
+        if (weatherIconRef.current) {
+          ctx.drawImage(
+            weatherIconRef.current,
+            WEATHER_ICON_POS.x,
+            WEATHER_ICON_POS.y,
+            WEATHER_ICON_SIZE,
+            WEATHER_ICON_SIZE
+          );
+        }
+
+        // Day/Night Cycle
+        if (currentWeather.daily && currentWeather.daily.sunrise && currentWeather.daily.sunset) {
+          const now = new Date().getTime();
+          // Assuming sunrise/sunset are ISO strings, we need to parse them.
+          // Open-Meteo returns local time ISO strings if timezone=auto is used.
+          // But new Date(isoString) works.
+          const sunrise = new Date(currentWeather.daily.sunrise[0]).getTime();
+          const sunset = new Date(currentWeather.daily.sunset[0]).getTime();
+          
+          const brightness = getBrightness(now, sunrise, sunset);
+          
+          if (brightness < 1) {
+            ctx.fillStyle = `rgba(0,0,40,${1 - brightness})`;
+            ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+          }
+        }
       }
 
-      // Draw weather icon overlay after map tiles
-      if (weatherIconRef.current && canvas) {
-        drawWeatherIcon(canvas, weatherIconRef.current);
-      }
-    }
+      animationFrameId = requestAnimationFrame(render);
+    };
 
-    draw();
-  }, [pos, weather]);
+    render();
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, []); // Run once on mount, logic depends on refs
 
   return (
     <div className="w-full h-full flex items-center justify-center p-4">
       <canvas
         ref={canvasRef}
-        width={TILE_SIZE * 3}
-        height={TILE_SIZE * 3}
+        width={CANVAS_SIZE}
+        height={CANVAS_SIZE}
         style={{ border: "4px solid black", background: "#000" }}
       />
     </div>
   );
 }
 
-// Helper function to draw weather icon on canvas
-function drawWeatherIcon(canvas: HTMLCanvasElement, icon: HTMLImageElement) {
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(
-    icon,
-    WEATHER_ICON_POS.x,
-    WEATHER_ICON_POS.y,
-    WEATHER_ICON_SIZE,
-    WEATHER_ICON_SIZE
-  );
+// --- Helper Functions ---
+
+function renderRain(ctx: CanvasRenderingContext2D, raindrops: Particle[]) {
+  ctx.fillStyle = "#6bbaff"; // pixel-rain color
+  raindrops.forEach(d => {
+    ctx.fillRect(d.x, d.y, 2, 4); // tiny pixel droplet
+    d.y += d.speed;
+    if (d.y > CANVAS_SIZE) d.y = -10;
+  });
 }
 
-// 5️⃣ Load OSM tile
+function renderSnow(ctx: CanvasRenderingContext2D, snowflakes: Particle[]) {
+  ctx.fillStyle = "#ffffff";
+  snowflakes.forEach(s => {
+    ctx.fillRect(s.x, s.y, 3, 3);
+    s.y += s.speed;
+    if (s.y > CANVAS_SIZE) s.y = -10;
+  });
+}
+
+function renderClouds(ctx: CanvasRenderingContext2D, clouds: Cloud[], cloudSprite: HTMLImageElement) {
+  clouds.forEach(c => {
+    ctx.drawImage(cloudSprite, c.x, c.y, 100, 60); // Draw cloud with some size
+    c.x -= 0.5;
+    if (c.x < -100) c.x = CANVAS_SIZE + Math.random() * 100;
+  });
+}
+
+function getBrightness(now: number, sunrise: number, sunset: number) {
+  if (now < sunrise || now > sunset) return 0.3; // night
+  if (now > sunrise && now < sunrise + 60*60*1000) return 0.5; // dawn
+  if (now < sunset && now > sunset - 60*60*1000) return 0.5; // dusk
+  return 1; // day
+}
+
 async function loadTile(
   x: number,
   y: number,
@@ -187,7 +318,6 @@ async function loadTile(
   });
 }
 
-// 4️⃣ Pixelation: downscale -> upscale
 function pixelate(img: HTMLImageElement): HTMLCanvasElement {
   const temp = document.createElement("canvas");
   temp.width = PIXEL_SIZE;
