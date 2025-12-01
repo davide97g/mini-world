@@ -48,7 +48,7 @@ export class ChatSystem {
 
     this.chatIconContainer = this.scene.add.container(
       width - 100,
-      height - 100
+      height - 100,
     );
     this.chatIconContainer.setScrollFactor(0);
     this.chatIconContainer.setDepth(60);
@@ -110,7 +110,7 @@ export class ChatSystem {
       CHAT_WIDTH,
       chatHeight,
       0x2a2a2a,
-      0.95
+      0.95,
     );
     chatBg.setStrokeStyle(3, 0x555555);
     this.chatDialogueContainer.add(chatBg);
@@ -122,7 +122,7 @@ export class ChatSystem {
       CHAT_WIDTH,
       50,
       0x3a3a3a,
-      1
+      1,
     );
     headerBg.setStrokeStyle(2, 0x555555);
     this.chatDialogueContainer.add(headerBg);
@@ -164,14 +164,14 @@ export class ChatSystem {
       CHAT_WIDTH,
       messageAreaHeight,
       0x000000,
-      1
+      1,
     );
     this.chatDialogueContainer.add(messageAreaBg);
 
     const messageAreaStartY = messageAreaTop + 10;
     this.chatMessageContainer = this.scene.add.container(
       CHAT_WIDTH / 2,
-      messageAreaStartY
+      messageAreaStartY,
     );
     this.chatDialogueContainer.add(this.chatMessageContainer);
 
@@ -186,7 +186,7 @@ export class ChatSystem {
       inputWidth,
       40,
       0x2a2a2a,
-      1
+      1,
     );
     inputBg.setStrokeStyle(2, 0x555555);
     this.chatDialogueContainer.add(inputBg);
@@ -198,7 +198,7 @@ export class ChatSystem {
       {
         font: "14px monospace",
         color: "#ffffff",
-      }
+      },
     );
     this.chatInputField.setOrigin(0, 0.5);
     this.chatInputField.setInteractive({ useHandCursor: true });
@@ -214,7 +214,7 @@ export class ChatSystem {
       {
         font: "14px monospace",
         color: "#666666",
-      }
+      },
     );
     placeholderText.setOrigin(0, 0.5);
     placeholderText.setName("placeholder");
@@ -227,7 +227,7 @@ export class ChatSystem {
       {
         font: "bold 14px monospace",
         color: "#4a9eff",
-      }
+      },
     );
     sendButton.setOrigin(0.5);
     sendButton.setInteractive({ useHandCursor: true });
@@ -239,7 +239,7 @@ export class ChatSystem {
 
   private setupChatKeyboardControls(): void {
     const cKey = this.scene.input.keyboard!.addKey(
-      Phaser.Input.Keyboard.KeyCodes.C
+      Phaser.Input.Keyboard.KeyCodes.C,
     );
     cKey.on("down", () => {
       const canOpen = this.canOpenChatCheck ? this.canOpenChatCheck() : true;
@@ -249,7 +249,7 @@ export class ChatSystem {
     });
 
     const escKey = this.scene.input.keyboard!.addKey(
-      Phaser.Input.Keyboard.KeyCodes.ESC
+      Phaser.Input.Keyboard.KeyCodes.ESC,
     );
     escKey.on("down", () => {
       if (this.isChatOpen) {
@@ -325,7 +325,7 @@ export class ChatSystem {
     }
 
     const placeholder = this.chatDialogueContainer?.list.find(
-      (child) => child.name === "placeholder"
+      (child) => child.name === "placeholder",
     );
     if (placeholder && "setVisible" in placeholder) {
       (
@@ -354,7 +354,7 @@ export class ChatSystem {
     }
 
     const placeholder = this.chatDialogueContainer?.list.find(
-      (child) => child.name === "placeholder"
+      (child) => child.name === "placeholder",
     );
     if (placeholder && "setVisible" in placeholder) {
       (
@@ -384,7 +384,7 @@ export class ChatSystem {
       console.error("Error getting chat response:", error);
       this.addChatMessage(
         "statue",
-        "I apologize, but I'm having trouble responding right now. Please try again later."
+        "I apologize, but I'm having trouble responding right now. Please try again later.",
       );
     } finally {
       this.isLoadingResponse = false;
@@ -450,7 +450,7 @@ export class ChatSystem {
         font: "12px monospace",
         color: textColor,
         wordWrap: { width: maxMessageWidth - 20 },
-      }
+      },
     );
     messageText.setOrigin(isPlayer ? 1 : 0, 0.5);
     messageContainer.add(messageText);

@@ -8,7 +8,10 @@ import Phaser from "phaser";
 import { ASSET_PATHS } from "./config/AssetPaths";
 import { Player } from "./entities/Player";
 import { RemotePlayer } from "./entities/RemotePlayer";
-import { MultiplayerService, PlayerData } from "./services/MultiplayerService";
+import {
+  MultiplayerService,
+  type PlayerData,
+} from "./services/MultiplayerService";
 import { ChatSystem } from "./systems/ChatSystem";
 import { DialogSystem } from "./systems/DialogSystem";
 import { MenuSystem } from "./systems/MenuSystem";
@@ -47,7 +50,7 @@ const createVirtualCursorKeys = (): VirtualCursorKeys => {
 const isMobileDevice = (): boolean => {
   return (
     /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-      navigator.userAgent
+      navigator.userAgent,
     ) || window.innerWidth <= 768
   );
 };
@@ -87,7 +90,7 @@ export class GameScene extends Phaser.Scene {
     if (this.isMobile) {
       window.removeEventListener(
         "mobileDirectionChange",
-        this.handleMobileDirectionChange
+        this.handleMobileDirectionChange,
       );
       window.removeEventListener("mobileActionA", this.handleMobileActionA);
       window.removeEventListener("mobileActionB", this.handleMobileActionB);
@@ -100,7 +103,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Clean up remote players
-    this.remotePlayers.forEach((player) => player.destroy());
+    this.remotePlayers.forEach((player) => {
+      player.destroy();
+    });
     this.remotePlayers.clear();
 
     // Stop music
@@ -146,7 +151,7 @@ export class GameScene extends Phaser.Scene {
 
     const spawnPoint = map.findObject(
       "Objects",
-      (obj) => obj.name === "Spawn Point"
+      (obj) => obj.name === "Spawn Point",
     );
 
     if (!spawnPoint) {
@@ -161,7 +166,7 @@ export class GameScene extends Phaser.Scene {
             name: string;
             type: string;
             value: string;
-          }
+          },
         ];
         id: number;
       };
@@ -199,13 +204,13 @@ export class GameScene extends Phaser.Scene {
 
     // Initialize music
     this.initMusic();
-    
+
     // Start music after game loads
     this.startMusic();
-    
+
     // Ensure music continues when tab loses focus
     this.setupBackgroundAudio();
-    
+
     // Create volume toggle icon
     this.createVolumeToggleIcon();
 
@@ -234,7 +239,7 @@ export class GameScene extends Phaser.Scene {
     // Listen for mobile control events
     window.addEventListener(
       "mobileDirectionChange",
-      this.handleMobileDirectionChange
+      this.handleMobileDirectionChange,
     );
     window.addEventListener("mobileActionA", this.handleMobileActionA);
     window.addEventListener("mobileActionB", this.handleMobileActionB);
@@ -328,7 +333,7 @@ export class GameScene extends Phaser.Scene {
     debugLog("=== Multiplayer Configuration ===");
     debugLog(
       "VITE_SERVER_URL:",
-      import.meta.env.VITE_SERVER_URL || "not set (using default)"
+      import.meta.env.VITE_SERVER_URL || "not set (using default)",
     );
     debugLog("Using server URL:", serverUrl);
     debugLog("================================");
@@ -385,7 +390,7 @@ export class GameScene extends Phaser.Scene {
         remotePlayer.updatePosition(
           playerData.x,
           playerData.y,
-          playerData.direction
+          playerData.direction,
         );
       }
     });
@@ -430,14 +435,14 @@ export class GameScene extends Phaser.Scene {
       playerData.id,
       "at",
       playerData.x,
-      playerData.y
+      playerData.y,
     );
     const remotePlayer = new RemotePlayer(
       this,
       playerData.id,
       playerData.x,
       playerData.y,
-      playerData.direction
+      playerData.direction,
     );
 
     // Add collision with world layer
@@ -460,10 +465,10 @@ export class GameScene extends Phaser.Scene {
 
   private setupMenuDialogControls(): void {
     const spaceKey = this.input.keyboard!.addKey(
-      Phaser.Input.Keyboard.KeyCodes.SPACE
+      Phaser.Input.Keyboard.KeyCodes.SPACE,
     );
     const enterKey = this.input.keyboard!.addKey(
-      Phaser.Input.Keyboard.KeyCodes.ENTER
+      Phaser.Input.Keyboard.KeyCodes.ENTER,
     );
 
     spaceKey.on("down", () => {
@@ -517,7 +522,7 @@ export class GameScene extends Phaser.Scene {
       debugLog(
         `Tile info mode: ${
           tileInfoMode ? "ON" : "OFF"
-        }. Click on tiles to see their GID.`
+        }. Click on tiles to see their GID.`,
       );
     });
 
@@ -620,7 +625,11 @@ export class GameScene extends Phaser.Scene {
     // Ensure Web Audio context stays active
     try {
       const soundManager = this.sound as Phaser.Sound.WebAudioSoundManager;
-      if (soundManager && soundManager.context && soundManager.context.state === "suspended") {
+      if (
+        soundManager &&
+        soundManager.context &&
+        soundManager.context.state === "suspended"
+      ) {
         soundManager.context.resume();
       }
     } catch (e) {
@@ -679,8 +688,13 @@ export class GameScene extends Phaser.Scene {
     this.volumeIconContainer.setScrollFactor(0);
     this.volumeIconContainer.setDepth(100);
     this.volumeIconContainer.setInteractive(
-      new Phaser.Geom.Rectangle(-iconSize / 2, -iconSize / 2, iconSize, iconSize),
-      Phaser.Geom.Rectangle.Contains
+      new Phaser.Geom.Rectangle(
+        -iconSize / 2,
+        -iconSize / 2,
+        iconSize,
+        iconSize,
+      ),
+      Phaser.Geom.Rectangle.Contains,
     );
     this.volumeIconContainer.setInteractive({ useHandCursor: true });
 
@@ -727,66 +741,140 @@ export class GameScene extends Phaser.Scene {
     if (this.isMuted) {
       // Muted icon: speaker with X
       this.volumeIconGraphics.lineStyle(3, 0xffffff, 1);
-      
+
       // Speaker base
       this.volumeIconGraphics.beginPath();
-      this.volumeIconGraphics.moveTo(centerX - iconSize / 3, centerY - iconSize / 4);
-      this.volumeIconGraphics.lineTo(centerX - iconSize / 2, centerY - iconSize / 2);
-      this.volumeIconGraphics.lineTo(centerX - iconSize / 2, centerY + iconSize / 2);
-      this.volumeIconGraphics.lineTo(centerX - iconSize / 3, centerY + iconSize / 4);
+      this.volumeIconGraphics.moveTo(
+        centerX - iconSize / 3,
+        centerY - iconSize / 4,
+      );
+      this.volumeIconGraphics.lineTo(
+        centerX - iconSize / 2,
+        centerY - iconSize / 2,
+      );
+      this.volumeIconGraphics.lineTo(
+        centerX - iconSize / 2,
+        centerY + iconSize / 2,
+      );
+      this.volumeIconGraphics.lineTo(
+        centerX - iconSize / 3,
+        centerY + iconSize / 4,
+      );
       this.volumeIconGraphics.closePath();
       this.volumeIconGraphics.strokePath();
 
       // Speaker cone
       this.volumeIconGraphics.beginPath();
-      this.volumeIconGraphics.moveTo(centerX - iconSize / 3, centerY - iconSize / 4);
+      this.volumeIconGraphics.moveTo(
+        centerX - iconSize / 3,
+        centerY - iconSize / 4,
+      );
       this.volumeIconGraphics.lineTo(centerX, centerY - iconSize / 3);
       this.volumeIconGraphics.lineTo(centerX, centerY + iconSize / 3);
-      this.volumeIconGraphics.lineTo(centerX - iconSize / 3, centerY + iconSize / 4);
+      this.volumeIconGraphics.lineTo(
+        centerX - iconSize / 3,
+        centerY + iconSize / 4,
+      );
       this.volumeIconGraphics.closePath();
       this.volumeIconGraphics.strokePath();
 
       // X mark
       this.volumeIconGraphics.lineStyle(3, 0xff6666, 1);
       this.volumeIconGraphics.beginPath();
-      this.volumeIconGraphics.moveTo(centerX + iconSize / 6, centerY - iconSize / 6);
-      this.volumeIconGraphics.lineTo(centerX + iconSize / 2, centerY - iconSize / 2);
-      this.volumeIconGraphics.moveTo(centerX + iconSize / 6, centerY + iconSize / 6);
-      this.volumeIconGraphics.lineTo(centerX + iconSize / 2, centerY + iconSize / 2);
-      this.volumeIconGraphics.moveTo(centerX + iconSize / 2, centerY - iconSize / 2);
-      this.volumeIconGraphics.lineTo(centerX + iconSize / 6, centerY + iconSize / 6);
-      this.volumeIconGraphics.moveTo(centerX + iconSize / 2, centerY + iconSize / 2);
-      this.volumeIconGraphics.lineTo(centerX + iconSize / 6, centerY - iconSize / 6);
+      this.volumeIconGraphics.moveTo(
+        centerX + iconSize / 6,
+        centerY - iconSize / 6,
+      );
+      this.volumeIconGraphics.lineTo(
+        centerX + iconSize / 2,
+        centerY - iconSize / 2,
+      );
+      this.volumeIconGraphics.moveTo(
+        centerX + iconSize / 6,
+        centerY + iconSize / 6,
+      );
+      this.volumeIconGraphics.lineTo(
+        centerX + iconSize / 2,
+        centerY + iconSize / 2,
+      );
+      this.volumeIconGraphics.moveTo(
+        centerX + iconSize / 2,
+        centerY - iconSize / 2,
+      );
+      this.volumeIconGraphics.lineTo(
+        centerX + iconSize / 6,
+        centerY + iconSize / 6,
+      );
+      this.volumeIconGraphics.moveTo(
+        centerX + iconSize / 2,
+        centerY + iconSize / 2,
+      );
+      this.volumeIconGraphics.lineTo(
+        centerX + iconSize / 6,
+        centerY - iconSize / 6,
+      );
       this.volumeIconGraphics.strokePath();
     } else {
       // Unmuted icon: speaker with sound waves
       this.volumeIconGraphics.lineStyle(3, 0xffffff, 1);
-      
+
       // Speaker base
       this.volumeIconGraphics.beginPath();
-      this.volumeIconGraphics.moveTo(centerX - iconSize / 3, centerY - iconSize / 4);
-      this.volumeIconGraphics.lineTo(centerX - iconSize / 2, centerY - iconSize / 2);
-      this.volumeIconGraphics.lineTo(centerX - iconSize / 2, centerY + iconSize / 2);
-      this.volumeIconGraphics.lineTo(centerX - iconSize / 3, centerY + iconSize / 4);
+      this.volumeIconGraphics.moveTo(
+        centerX - iconSize / 3,
+        centerY - iconSize / 4,
+      );
+      this.volumeIconGraphics.lineTo(
+        centerX - iconSize / 2,
+        centerY - iconSize / 2,
+      );
+      this.volumeIconGraphics.lineTo(
+        centerX - iconSize / 2,
+        centerY + iconSize / 2,
+      );
+      this.volumeIconGraphics.lineTo(
+        centerX - iconSize / 3,
+        centerY + iconSize / 4,
+      );
       this.volumeIconGraphics.closePath();
       this.volumeIconGraphics.strokePath();
 
       // Speaker cone
       this.volumeIconGraphics.beginPath();
-      this.volumeIconGraphics.moveTo(centerX - iconSize / 3, centerY - iconSize / 4);
+      this.volumeIconGraphics.moveTo(
+        centerX - iconSize / 3,
+        centerY - iconSize / 4,
+      );
       this.volumeIconGraphics.lineTo(centerX, centerY - iconSize / 3);
       this.volumeIconGraphics.lineTo(centerX, centerY + iconSize / 3);
-      this.volumeIconGraphics.lineTo(centerX - iconSize / 3, centerY + iconSize / 4);
+      this.volumeIconGraphics.lineTo(
+        centerX - iconSize / 3,
+        centerY + iconSize / 4,
+      );
       this.volumeIconGraphics.closePath();
       this.volumeIconGraphics.strokePath();
 
       // Sound waves
       this.volumeIconGraphics.lineStyle(2, 0xffffff, 1);
       this.volumeIconGraphics.beginPath();
-      this.volumeIconGraphics.arc(centerX, centerY, iconSize / 4, -Math.PI / 4, Math.PI / 4, false);
+      this.volumeIconGraphics.arc(
+        centerX,
+        centerY,
+        iconSize / 4,
+        -Math.PI / 4,
+        Math.PI / 4,
+        false,
+      );
       this.volumeIconGraphics.strokePath();
       this.volumeIconGraphics.beginPath();
-      this.volumeIconGraphics.arc(centerX, centerY, iconSize / 2.5, -Math.PI / 3, Math.PI / 3, false);
+      this.volumeIconGraphics.arc(
+        centerX,
+        centerY,
+        iconSize / 2.5,
+        -Math.PI / 3,
+        Math.PI / 3,
+        false,
+      );
       this.volumeIconGraphics.strokePath();
     }
   }
@@ -796,7 +884,11 @@ export class GameScene extends Phaser.Scene {
     const keepAudioContextActive = () => {
       try {
         const soundManager = this.sound as Phaser.Sound.WebAudioSoundManager;
-        if (soundManager && soundManager.context && soundManager.context.state === "suspended") {
+        if (
+          soundManager &&
+          soundManager.context &&
+          soundManager.context.state === "suspended"
+        ) {
           soundManager.context.resume();
         }
       } catch (e) {
@@ -844,7 +936,11 @@ export class GameScene extends Phaser.Scene {
     // Periodically check and resume audio context (like YouTube does)
     this.audioContextCheckInterval = window.setInterval(() => {
       keepAudioContextActive();
-      if (this.mainThemeMusic && this.isMusicPlaying && this.mainThemeMusic.isPaused) {
+      if (
+        this.mainThemeMusic &&
+        this.isMusicPlaying &&
+        this.mainThemeMusic.isPaused
+      ) {
         this.mainThemeMusic.resume();
       }
     }, 1000); // Check every second

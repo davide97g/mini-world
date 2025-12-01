@@ -15,7 +15,7 @@ export class RemotePlayer {
     id: string,
     x: number,
     y: number,
-    direction?: string
+    direction?: string,
   ) {
     this.scene = scene;
     this.id = id;
@@ -122,7 +122,7 @@ export class RemotePlayer {
       this.sprite.x,
       this.sprite.y,
       x,
-      y
+      y,
     );
     const duration = Math.min(distance * 10, 500); // Cap duration for very long distances
 

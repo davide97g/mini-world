@@ -86,7 +86,7 @@ export class PreloaderScene extends Phaser.Scene {
         color: "#ffffff",
         stroke: "#000000",
         strokeThickness: 4,
-      }
+      },
     );
     this.ui.loadingText.setOrigin(0.5, 0.5);
 
@@ -101,7 +101,7 @@ export class PreloaderScene extends Phaser.Scene {
         color: "#4ecdc4",
         stroke: "#000000",
         strokeThickness: 3,
-      }
+      },
     );
     this.ui.percentText.setOrigin(0.5, 0.5);
   }
@@ -110,7 +110,7 @@ export class PreloaderScene extends Phaser.Scene {
     barX: number,
     barY: number,
     barWidth: number,
-    barHeight: number
+    barHeight: number,
   ): void {
     const border = this.add.graphics();
     // Outer border (dark)
@@ -125,8 +125,7 @@ export class PreloaderScene extends Phaser.Scene {
   }
 
   private startFakeLoading(): void {
-    const { barWidth, barHeight, duration, updateInterval } =
-      PRELOADER_CONFIG;
+    const { barWidth, barHeight, duration, updateInterval } = PRELOADER_CONFIG;
     const { width, height } = this.cameras.main;
     const barX = (width - barWidth) / 2;
     const barY = height / 2;
@@ -162,7 +161,7 @@ export class PreloaderScene extends Phaser.Scene {
     barY: number,
     barWidth: number,
     barHeight: number,
-    progress: number
+    progress: number,
   ): void {
     this.ui.progressBar?.clear();
 
@@ -174,15 +173,12 @@ export class PreloaderScene extends Phaser.Scene {
 
     // Add highlight for pixel art effect
     if (fillWidth > 4) {
-      this.ui.progressBar?.fillStyle(
-        PRELOADER_CONFIG.barHighlightColor,
-        1
-      );
+      this.ui.progressBar?.fillStyle(PRELOADER_CONFIG.barHighlightColor, 1);
       this.ui.progressBar?.fillRect(
         barX + 2,
         barY + 2,
         fillWidth,
-        Math.max(2, (barHeight - 4) / 4)
+        Math.max(2, (barHeight - 4) / 4),
       );
     }
   }

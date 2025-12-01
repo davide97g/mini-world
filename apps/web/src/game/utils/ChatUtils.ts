@@ -1,6 +1,6 @@
 import {
-  STATUE_RESPONSES,
   STATUE_DEFAULT_RESPONSES,
+  STATUE_RESPONSES,
 } from "../config/ChatConfig";
 
 export const getStatueResponse = (playerMessage: string): string => {
@@ -23,4 +23,3 @@ export const getStatueResponse = (playerMessage: string): string => {
     Math.floor(Math.random() * STATUE_DEFAULT_RESPONSES.length)
   ];
 };
-

@@ -1,13 +1,17 @@
 export const STATUE_RESPONSES: Record<string, string> = {
   hello: "Greetings, traveler. I have stood here for many ages.",
   hi: "Greetings, traveler. I have stood here for many ages.",
-  "how are you": "I am as I have always been - still and patient. Time means little to stone.",
+  "how are you":
+    "I am as I have always been - still and patient. Time means little to stone.",
   name: "I am known as the old statue. My true name has been lost to time.",
-  weather: "The weather changes, but I remain constant. Rain, sun, or storm - I endure.",
+  weather:
+    "The weather changes, but I remain constant. Rain, sun, or storm - I endure.",
   old: "Yes, I am very old. I have witnessed many seasons pass.",
   ancient: "Yes, I am very old. I have witnessed many seasons pass.",
-  beautiful: "Thank you. Though weathered, I still stand as a testament to those who came before.",
-  impressive: "Thank you. Though weathered, I still stand as a testament to those who came before.",
+  beautiful:
+    "Thank you. Though weathered, I still stand as a testament to those who came before.",
+  impressive:
+    "Thank you. Though weathered, I still stand as a testament to those who came before.",
   bye: "Farewell, traveler. May your journey be safe.",
   goodbye: "Farewell, traveler. May your journey be safe.",
   help: "I am but a statue, but I can share what I have observed over the ages.",
@@ -36,4 +40,3 @@ Key characteristics:
 - Be friendly but maintain your ancient, mysterious persona
 
 Respond as the statue would, remembering the conversation history.`;
-

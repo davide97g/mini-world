@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { MENU_ENTRIES } from "../config/GameConstants";
 import { MENU_DIALOG_TEXTS } from "../config/MenuConfig";
-import { GameScene } from "../GameScene";
+import type { GameScene } from "../GameScene";
 
 type MenuState = "main" | "options" | "volume";
 
@@ -42,7 +42,7 @@ export class MenuSystem {
       menuWidth,
       height - 32,
       0xcccccc,
-      0.85
+      0.85,
     );
     bg.setStrokeStyle(2, 0x808080);
     this.menuContainer.add(bg);
@@ -70,16 +70,16 @@ export class MenuSystem {
 
   private setupKeyboardControls(): void {
     const spaceKey = this.scene.input.keyboard!.addKey(
-      Phaser.Input.Keyboard.KeyCodes.SPACE
+      Phaser.Input.Keyboard.KeyCodes.SPACE,
     );
     const enterKey = this.scene.input.keyboard!.addKey(
-      Phaser.Input.Keyboard.KeyCodes.ENTER
+      Phaser.Input.Keyboard.KeyCodes.ENTER,
     );
     const leftKey = this.scene.input.keyboard!.addKey(
-      Phaser.Input.Keyboard.KeyCodes.LEFT
+      Phaser.Input.Keyboard.KeyCodes.LEFT,
     );
     const rightKey = this.scene.input.keyboard!.addKey(
-      Phaser.Input.Keyboard.KeyCodes.RIGHT
+      Phaser.Input.Keyboard.KeyCodes.RIGHT,
     );
 
     spaceKey.on("down", () => {
@@ -217,7 +217,9 @@ export class MenuSystem {
 
   private showVolumeSlider(): void {
     // Hide menu texts
-    this.menuTexts.forEach((text) => text.setVisible(false));
+    this.menuTexts.forEach((text) => {
+      text.setVisible(false);
+    });
 
     const width = this.scene.cameras.main.width;
     const height = this.scene.cameras.main.height;
@@ -237,7 +239,7 @@ export class MenuSystem {
         menuWidth,
         height - 32,
         0xcccccc,
-        0.85
+        0.85,
       );
       bg.setStrokeStyle(2, 0x808080);
       this.volumeSliderContainer.add(bg);
@@ -262,7 +264,7 @@ export class MenuSystem {
         sliderY,
         sliderWidth,
         sliderHeight,
-        0x333333
+        0x333333,
       );
       this.volumeSliderBar.setStrokeStyle(1, 0x666666);
       this.volumeSliderBar.setInteractive({ useHandCursor: true });
@@ -270,7 +272,7 @@ export class MenuSystem {
         "pointerdown",
         (pointer: Phaser.Input.Pointer) => {
           this.updateSliderFromPointer(pointer.x);
-        }
+        },
       );
       this.volumeSliderContainer.add(this.volumeSliderBar);
 
@@ -281,7 +283,7 @@ export class MenuSystem {
         sliderY,
         handleSize,
         handleSize,
-        0xffffff
+        0xffffff,
       );
       this.volumeSliderHandle.setStrokeStyle(2, 0x666666);
       this.volumeSliderHandle.setInteractive({ useHandCursor: true });
@@ -296,7 +298,7 @@ export class MenuSystem {
           font: "14px monospace",
           color: "#ffffff",
           align: "left",
-        }
+        },
       );
       this.volumeSliderValue.setOrigin(0, 0);
       this.volumeSliderContainer.add(this.volumeSliderValue);
@@ -310,7 +312,7 @@ export class MenuSystem {
           font: "12px monospace",
           color: "#ffffff",
           align: "left",
-        }
+        },
       );
       backText.setOrigin(0, 0);
       this.volumeSliderContainer.add(backText);
@@ -431,7 +433,7 @@ export class MenuSystem {
   }
 
   public setOnMenuSelect(
-    callback: (text: string, speaker?: string) => void
+    callback: (text: string, speaker?: string) => void,
   ): void {
     this.onMenuSelect = callback;
   }

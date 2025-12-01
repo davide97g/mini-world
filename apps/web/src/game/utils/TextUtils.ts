@@ -1,10 +1,10 @@
-import Phaser from "phaser";
+import type Phaser from "phaser";
 
 export const splitTextIntoLines = (
   scene: Phaser.Scene,
   text: string,
   maxWidth: number,
-  font: string = "16px monospace"
+  font: string = "16px monospace",
 ): string[] => {
   const tempText = scene.add.text(0, 0, "", {
     font,
@@ -36,4 +36,3 @@ export const splitTextIntoLines = (
   tempText.destroy();
   return lines;
 };
-

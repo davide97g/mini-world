@@ -9,7 +9,8 @@ import { Server } from "socket.io";
 dotenv.config();
 
 // Debug logging utility
-const DEBUG = process.env.DEBUG === "true" || process.env.NODE_ENV === "development";
+const DEBUG =
+  process.env.DEBUG === "true" || process.env.NODE_ENV === "development";
 const debugLog = (...args: unknown[]): void => {
   if (DEBUG) {
     console.log(...args);
@@ -83,7 +84,7 @@ app.use(
   cors({
     origin: corsOrigins,
     credentials: true,
-  })
+  }),
 );
 app.use(express.json());
 
@@ -92,15 +93,15 @@ console.log("=== Server Configuration ===");
 console.log("PORT:", PORT);
 console.log(
   "CLIENT_URL:",
-  process.env.CLIENT_URL || "http://localhost:5173 (default)"
+  process.env.CLIENT_URL || "http://localhost:5173 (default)",
 );
 debugLog(
   "CORS Origins:",
-  Array.isArray(corsOrigins) ? corsOrigins.join(", ") : corsOrigins
+  Array.isArray(corsOrigins) ? corsOrigins.join(", ") : corsOrigins,
 );
 debugLog(
   "OPEN_AI_API_KEY:",
-  process.env.OPEN_AI_API_KEY ? "✓ Set" : "✗ Not set"
+  process.env.OPEN_AI_API_KEY ? "✓ Set" : "✗ Not set",
 );
 debugLog("DEBUG mode:", DEBUG ? "enabled" : "disabled");
 console.log("===========================");
@@ -189,7 +190,7 @@ const getAllPlayers = (): Player[] => {
 // Socket.io connection handling
 io.on("connection", (socket) => {
   debugLog(
-    `Player connected: ${socket.id} from origin: ${socket.handshake.headers.origin}`
+    `Player connected: ${socket.id} from origin: ${socket.handshake.headers.origin}`,
   );
 
   socket.on("newplayer", (data?: { x: number; y: number }) => {
@@ -211,13 +212,13 @@ io.on("connection", (socket) => {
 
     debugLog(
       `📤 Broadcasting 'newplayer' to all clients except ${socket.id}:`,
-      player
+      player,
     );
     // Broadcast new player to all other clients
     socket.broadcast.emit("newplayer", player);
 
     debugLog(
-      `New player joined: ${socket.id} at (${player.x}, ${player.y}). Total players: ${players.size}`
+      `New player joined: ${socket.id} at (${player.x}, ${player.y}). Total players: ${players.size}`,
     );
   });
 
@@ -227,7 +228,7 @@ io.on("connection", (socket) => {
     // If player doesn't exist yet, create them (handles race condition)
     if (!player) {
       debugWarn(
-        `⚠️ Move event received from unregistered player ${socket.id}, creating player entry`
+        `⚠️ Move event received from unregistered player ${socket.id}, creating player entry`,
       );
       player = {
         id: socket.id,
@@ -255,7 +256,7 @@ io.on("connection", (socket) => {
 
     debugLog(
       `📤 Broadcasting 'move' from ${socket.id} to all other clients:`,
-      moveData
+      moveData,
     );
     // Broadcast movement to all other clients
     socket.broadcast.emit("move", moveData);
@@ -266,12 +267,12 @@ io.on("connection", (socket) => {
     if (player) {
       players.delete(socket.id);
       debugLog(
-        `📤 Broadcasting 'remove' for disconnected player: ${socket.id}`
+        `📤 Broadcasting 'remove' for disconnected player: ${socket.id}`,
       );
       // Notify all clients to remove this player
       io.emit("remove", socket.id);
       debugLog(
-        `Player disconnected: ${socket.id}. Remaining players: ${players.size}`
+        `Player disconnected: ${socket.id}. Remaining players: ${players.size}`,
       );
     }
   });
@@ -281,6 +282,6 @@ httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   debugLog(`Socket.io server ready for multiplayer connections`);
   debugLog(
-    `WebSocket endpoint: ws://localhost:${PORT} (or wss:// in production)`
+    `WebSocket endpoint: ws://localhost:${PORT} (or wss:// in production)`,
   );
 });

@@ -1,9 +1,9 @@
 import Phaser from "phaser";
 import { WEATHER_UPDATE_INTERVAL } from "../config/GameConstants";
 import {
-  WEATHER_CODE_MAP,
-  WeatherData,
   getWeatherIcon,
+  WEATHER_CODE_MAP,
+  type WeatherData,
 } from "../config/WeatherConfig";
 import { fetchWeatherData, formatTime } from "../utils/WeatherUtils";
 
@@ -39,13 +39,13 @@ export class WeatherSystem {
           errorMessage = "Location request timed out";
         }
         this.createWeatherWidget(null, errorMessage);
-      }
+      },
     );
   }
 
   private createWeatherWidget(
     weather: WeatherData | null,
-    error: string | null
+    error: string | null,
   ): void {
     const width = this.scene.cameras.main.width;
     const padding = 12;
@@ -64,7 +64,7 @@ export class WeatherSystem {
       widgetWidth,
       widgetHeight,
       0xffffff,
-      0.9
+      0.9,
     );
     bg.setStrokeStyle(2, 0x000000, 0.3);
     container.add(bg);
@@ -79,7 +79,7 @@ export class WeatherSystem {
           color: "#ff0000",
           align: "center",
           wordWrap: { width: widgetWidth - 20 },
-        }
+        },
       );
       errorText.setOrigin(0.5);
       container.add(errorText);
@@ -105,7 +105,7 @@ export class WeatherSystem {
           },
           () => {
             // Silently fail on update
-          }
+          },
         );
       }
     }, WEATHER_UPDATE_INTERVAL);
@@ -114,7 +114,7 @@ export class WeatherSystem {
   private renderWeatherContent(
     container: Phaser.GameObjects.Container,
     weather: WeatherData,
-    widgetWidth: number
+    widgetWidth: number,
   ): void {
     const weatherDescription =
       WEATHER_CODE_MAP[weather.weathercode] || "Unknown";
@@ -133,7 +133,7 @@ export class WeatherSystem {
       {
         font: "bold 16px monospace",
         color: "#000000",
-      }
+      },
     );
     container.add(tempText);
 
@@ -151,7 +151,7 @@ export class WeatherSystem {
       {
         font: "10px monospace",
         color: "#666666",
-      }
+      },
     );
     container.add(windText);
 
@@ -162,7 +162,7 @@ export class WeatherSystem {
       {
         font: "9px monospace",
         color: "#666666",
-      }
+      },
     );
     container.add(timeText);
   }

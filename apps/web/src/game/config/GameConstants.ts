@@ -21,4 +21,3 @@ export const DIALOG_TYPING_SPEED = 30; // milliseconds per character
 export const CHAT_MAX_MESSAGES = 6;
 
 export const CHAT_WIDTH = 400;
-

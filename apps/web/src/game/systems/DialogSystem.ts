@@ -1,6 +1,6 @@
-import Phaser from "phaser";
-import { splitTextIntoLines } from "../utils/TextUtils";
+import type Phaser from "phaser";
 import { DIALOG_TYPING_SPEED } from "../config/GameConstants";
+import { splitTextIntoLines } from "../utils/TextUtils";
 
 export class DialogSystem {
   private scene: Phaser.Scene;
@@ -37,7 +37,7 @@ export class DialogSystem {
       dialogWidth,
       dialogHeight,
       0xadd8e6,
-      1
+      1,
     );
     bg.setStrokeStyle(4, 0x4169e1);
     this.dialogContainer.add(bg);
@@ -59,7 +59,7 @@ export class DialogSystem {
         font: "20px monospace",
         color: "#000000",
         align: "right",
-      }
+      },
     );
     this.dialogIndicator.setOrigin(0.5, 0.5);
     this.dialogIndicator.setVisible(false);
@@ -111,7 +111,7 @@ export class DialogSystem {
     if (this.currentDialogCharIndex < currentLine.length) {
       const textToShow = currentLine.substring(
         0,
-        this.currentDialogCharIndex + 1
+        this.currentDialogCharIndex + 1,
       );
       if (this.dialogText) {
         this.dialogText.setText(textToShow);
@@ -229,4 +229,3 @@ export class DialogSystem {
     return this.isDialogVisible;
   }
 }
-

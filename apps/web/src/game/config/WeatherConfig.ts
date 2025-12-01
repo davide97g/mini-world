@@ -48,4 +48,3 @@ export const getWeatherIcon = (weathercode: number): string => {
   if (weathercode <= 86) return "❄️";
   return "⛈️";
 };
-

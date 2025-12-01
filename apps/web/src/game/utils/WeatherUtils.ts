@@ -1,4 +1,4 @@
-import { WeatherData } from "../config/WeatherConfig";
+import type { WeatherData } from "../config/WeatherConfig";
 
 export const formatTime = (timeString: string): string => {
   const date = new Date(timeString);
@@ -10,7 +10,7 @@ export const formatTime = (timeString: string): string => {
 
 export const fetchWeatherData = async (
   lat: number,
-  lon: number
+  lon: number,
 ): Promise<WeatherData | null> => {
   try {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&daily=sunrise,sunset&timezone=auto`;
@@ -30,4 +30,3 @@ export const fetchWeatherData = async (
     return null;
   }
 };
-

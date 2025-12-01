@@ -9,4 +9,3 @@ export const ASSET_PATHS = {
     mainTheme: "/songs/main-theme.mp3",
   },
 } as const;
-

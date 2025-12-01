@@ -13,4 +13,3 @@ export const MENU_DIALOG_TEXTS: Record<string, string> = {
     "Debug mode activated. This mode shows additional information for developers.",
   Exit: "Are you sure you want to exit? Any unsaved progress will be lost.",
 };
-

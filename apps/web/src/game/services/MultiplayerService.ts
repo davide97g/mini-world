@@ -1,4 +1,4 @@
-import { io, Socket } from "socket.io-client";
+import { io, type Socket } from "socket.io-client";
 
 // Debug logging utility
 const DEBUG = import.meta.env.VITE_DEBUG === "true" || import.meta.env.DEV;
@@ -112,7 +112,10 @@ export class MultiplayerService {
 
     this.socket.on("allplayers", (players: PlayerData[]) => {
       debugLog("📥 Received 'allplayers' event:", players);
-      debugLog("📥 Number of callbacks registered:", this.onAllPlayersCallbacks.length);
+      debugLog(
+        "📥 Number of callbacks registered:",
+        this.onAllPlayersCallbacks.length,
+      );
       this.onAllPlayersCallbacks.forEach((callback) => {
         try {
           callback(players);
@@ -124,7 +127,10 @@ export class MultiplayerService {
 
     this.socket.on("newplayer", (player: PlayerData) => {
       debugLog("📥 Received 'newplayer' event:", player);
-      debugLog("📥 Number of callbacks registered:", this.onPlayerJoinCallbacks.length);
+      debugLog(
+        "📥 Number of callbacks registered:",
+        this.onPlayerJoinCallbacks.length,
+      );
       this.onPlayerJoinCallbacks.forEach((callback) => {
         try {
           callback(player);
@@ -136,7 +142,10 @@ export class MultiplayerService {
 
     this.socket.on("move", (player: PlayerData) => {
       debugLog("📥 Received 'move' event:", player);
-      debugLog("📥 Number of callbacks registered:", this.onPlayerMoveCallbacks.length);
+      debugLog(
+        "📥 Number of callbacks registered:",
+        this.onPlayerMoveCallbacks.length,
+      );
       this.onPlayerMoveCallbacks.forEach((callback) => {
         try {
           callback(player);
@@ -148,7 +157,10 @@ export class MultiplayerService {
 
     this.socket.on("remove", (playerId: string) => {
       debugLog("📥 Received 'remove' event:", playerId);
-      debugLog("📥 Number of callbacks registered:", this.onPlayerLeaveCallbacks.length);
+      debugLog(
+        "📥 Number of callbacks registered:",
+        this.onPlayerLeaveCallbacks.length,
+      );
       this.onPlayerLeaveCallbacks.forEach((callback) => {
         try {
           callback(playerId);
@@ -202,46 +214,58 @@ export class MultiplayerService {
   // Callback registration methods
   public onPlayerJoin(callback: PlayerJoinCallback): void {
     this.onPlayerJoinCallbacks.push(callback);
-    debugLog("✓ Registered onPlayerJoin callback. Total:", this.onPlayerJoinCallbacks.length);
+    debugLog(
+      "✓ Registered onPlayerJoin callback. Total:",
+      this.onPlayerJoinCallbacks.length,
+    );
   }
 
   public onPlayerMove(callback: PlayerMoveCallback): void {
     this.onPlayerMoveCallbacks.push(callback);
-    debugLog("✓ Registered onPlayerMove callback. Total:", this.onPlayerMoveCallbacks.length);
+    debugLog(
+      "✓ Registered onPlayerMove callback. Total:",
+      this.onPlayerMoveCallbacks.length,
+    );
   }
 
   public onPlayerLeave(callback: PlayerLeaveCallback): void {
     this.onPlayerLeaveCallbacks.push(callback);
-    debugLog("✓ Registered onPlayerLeave callback. Total:", this.onPlayerLeaveCallbacks.length);
+    debugLog(
+      "✓ Registered onPlayerLeave callback. Total:",
+      this.onPlayerLeaveCallbacks.length,
+    );
   }
 
   public onAllPlayers(callback: AllPlayersCallback): void {
     this.onAllPlayersCallbacks.push(callback);
-    debugLog("✓ Registered onAllPlayers callback. Total:", this.onAllPlayersCallbacks.length);
+    debugLog(
+      "✓ Registered onAllPlayers callback. Total:",
+      this.onAllPlayersCallbacks.length,
+    );
   }
 
   // Remove callbacks (useful for cleanup)
   public removePlayerJoinCallback(callback: PlayerJoinCallback): void {
     this.onPlayerJoinCallbacks = this.onPlayerJoinCallbacks.filter(
-      (cb) => cb !== callback
+      (cb) => cb !== callback,
     );
   }
 
   public removePlayerMoveCallback(callback: PlayerMoveCallback): void {
     this.onPlayerMoveCallbacks = this.onPlayerMoveCallbacks.filter(
-      (cb) => cb !== callback
+      (cb) => cb !== callback,
     );
   }
 
   public removePlayerLeaveCallback(callback: PlayerLeaveCallback): void {
     this.onPlayerLeaveCallbacks = this.onPlayerLeaveCallbacks.filter(
-      (cb) => cb !== callback
+      (cb) => cb !== callback,
     );
   }
 
   public removeAllPlayersCallback(callback: AllPlayersCallback): void {
     this.onAllPlayersCallbacks = this.onAllPlayersCallbacks.filter(
-      (cb) => cb !== callback
+      (cb) => cb !== callback,
     );
   }
 }

@@ -3,7 +3,7 @@ import { GameScene } from "./GameScene";
 import { PreloaderScene } from "./PreloaderScene";
 
 export const createGameConfig = (
-  parent: string
+  parent: string,
 ): Phaser.Types.Core.GameConfig => ({
   type: Phaser.AUTO,
   width: window.innerWidth,

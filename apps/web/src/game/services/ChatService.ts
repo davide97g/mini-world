@@ -41,7 +41,8 @@ export class ChatService {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
-          errorData.error || "Unable to connect to the statue. Please try again later."
+          errorData.error ||
+            "Unable to connect to the statue. Please try again later.",
         );
       }
 
@@ -72,4 +73,3 @@ export class ChatService {
     this.messageHistory = [...messages];
   }
 }
-

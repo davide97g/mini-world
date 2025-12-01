@@ -1,13 +1,15 @@
-import Phaser from "phaser";
+import type Phaser from "phaser";
 import { PLAYER_SPEED } from "../config/GameConstants";
 
 // Type for cursor keys (supports both Phaser and virtual cursor keys)
-type CursorKeys = Phaser.Types.Input.Keyboard.CursorKeys | {
-  up: { isDown: boolean };
-  down: { isDown: boolean };
-  left: { isDown: boolean };
-  right: { isDown: boolean };
-};
+type CursorKeys =
+  | Phaser.Types.Input.Keyboard.CursorKeys
+  | {
+      up: { isDown: boolean };
+      down: { isDown: boolean };
+      left: { isDown: boolean };
+      right: { isDown: boolean };
+    };
 
 export class Player {
   private sprite: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -21,12 +23,7 @@ export class Player {
   private positionUpdateThrottle: number = 100; // Send updates every 100ms
   private lastUpdateTime: number = 0;
 
-  constructor(
-    scene: Phaser.Scene,
-    x: number,
-    y: number,
-    cursors: CursorKeys
-  ) {
+  constructor(scene: Phaser.Scene, x: number, y: number, cursors: CursorKeys) {
     this.scene = scene;
     this.cursors = cursors;
     this.lastSentX = x;
@@ -160,7 +157,10 @@ export class Player {
       Math.abs(y - this.lastSentY) > 5 ||
       direction !== this.lastSentDirection;
 
-    if (positionChanged && now - this.lastUpdateTime > this.positionUpdateThrottle) {
+    if (
+      positionChanged &&
+      now - this.lastUpdateTime > this.positionUpdateThrottle
+    ) {
       if (this.onPositionUpdate) {
         this.onPositionUpdate(x, y, direction);
       }
@@ -172,7 +172,7 @@ export class Player {
   }
 
   public setOnPositionUpdate(
-    callback: (x: number, y: number, direction?: string) => void
+    callback: (x: number, y: number, direction?: string) => void,
   ): void {
     this.onPositionUpdate = callback;
   }
@@ -200,4 +200,3 @@ export class Player {
     );
   }
 }
-
