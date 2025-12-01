@@ -41,7 +41,7 @@ export class ChatService {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
-          errorData.error || `HTTP error! status: ${response.status}`
+          errorData.error || "Unable to connect to the statue. Please try again later."
         );
       }
 

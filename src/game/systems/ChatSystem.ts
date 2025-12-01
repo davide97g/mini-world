@@ -375,14 +375,9 @@ export class ChatSystem {
     } catch (error) {
       this.hideLoadingIndicator();
       console.error("Error getting chat response:", error);
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Failed to get response. Please try again.";
       this.addChatMessage(
         "statue",
-        "I apologize, but I'm having trouble responding right now. " +
-          errorMessage
+        "I apologize, but I'm having trouble responding right now. Please try again later."
       );
     } finally {
       this.isLoadingResponse = false;
