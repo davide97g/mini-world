@@ -21,9 +21,41 @@ const debugLog = (...args: unknown[]): void => {
     console.log(...args);
   }
 };
+const debugWarn = (...args: unknown[]): void => {
+  if (DEBUG) {
+    console.warn(...args);
+  }
+};
+
+// Virtual cursor keys for mobile controls
+interface VirtualCursorKeys {
+  up: { isDown: boolean };
+  down: { isDown: boolean };
+  left: { isDown: boolean };
+  right: { isDown: boolean };
+}
+
+const createVirtualCursorKeys = (): VirtualCursorKeys => {
+  return {
+    up: { isDown: false },
+    down: { isDown: false },
+    left: { isDown: false },
+    right: { isDown: false },
+  };
+};
+
+const isMobileDevice = (): boolean => {
+  return (
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent
+    ) || window.innerWidth <= 768
+  );
+};
 
 export class GameScene extends Phaser.Scene {
-  private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
+  private cursors?: Phaser.Types.Input.Keyboard.CursorKeys | VirtualCursorKeys;
+  private virtualCursors?: VirtualCursorKeys;
+  private isMobile = false;
   private player?: Player;
   private gameMap: Phaser.Tilemaps.Tilemap | null = null;
 
@@ -42,6 +74,17 @@ export class GameScene extends Phaser.Scene {
   }
 
   shutdown(): void {
+    // Clean up mobile event listeners
+    if (this.isMobile) {
+      window.removeEventListener(
+        "mobileDirectionChange",
+        this.handleMobileDirectionChange
+      );
+      window.removeEventListener("mobileActionA", this.handleMobileActionA);
+      window.removeEventListener("mobileActionB", this.handleMobileActionB);
+      window.removeEventListener("mobileStart", this.handleMobileStart);
+    }
+
     // Clean up multiplayer connection
     if (this.multiplayerService) {
       this.multiplayerService.disconnect();
@@ -109,7 +152,15 @@ export class GameScene extends Phaser.Scene {
       );
     });
 
-    this.cursors = this.input.keyboard!.createCursorKeys();
+    // Setup input - use virtual cursors for mobile, real keyboard for desktop
+    this.isMobile = isMobileDevice();
+    if (this.isMobile) {
+      this.virtualCursors = createVirtualCursorKeys();
+      this.cursors = this.virtualCursors;
+      this.setupMobileControls();
+    } else {
+      this.cursors = this.input.keyboard!.createCursorKeys();
+    }
 
     const spawnX = spawnPoint.x ?? 0;
     const spawnY = spawnPoint.y ?? 0;
@@ -140,6 +191,74 @@ export class GameScene extends Phaser.Scene {
     this.setupInputHandling();
   }
 
+  private setupMobileControls(): void {
+    // Bind handlers to preserve 'this' context
+    this.handleMobileDirectionChange =
+      this.handleMobileDirectionChange.bind(this);
+    this.handleMobileActionA = this.handleMobileActionA.bind(this);
+    this.handleMobileActionB = this.handleMobileActionB.bind(this);
+    this.handleMobileStart = this.handleMobileStart.bind(this);
+
+    // Listen for mobile control events
+    window.addEventListener(
+      "mobileDirectionChange",
+      this.handleMobileDirectionChange
+    );
+    window.addEventListener("mobileActionA", this.handleMobileActionA);
+    window.addEventListener("mobileActionB", this.handleMobileActionB);
+    window.addEventListener("mobileStart", this.handleMobileStart);
+  }
+
+  private handleMobileDirectionChange = (event: Event): void => {
+    const customEvent = event as CustomEvent<{
+      up: boolean;
+      down: boolean;
+      left: boolean;
+      right: boolean;
+    }>;
+    if (this.virtualCursors) {
+      this.virtualCursors.up.isDown = customEvent.detail.up;
+      this.virtualCursors.down.isDown = customEvent.detail.down;
+      this.virtualCursors.left.isDown = customEvent.detail.left;
+      this.virtualCursors.right.isDown = customEvent.detail.right;
+    }
+  };
+
+  private handleMobileActionA = (): void => {
+    // Main action: start chat or interact
+    if (this.chatSystem?.isOpen()) return;
+    if (this.dialogSystem?.isVisible()) {
+      this.dialogSystem.handleAdvance();
+    } else if (this.chatSystem?.getIsNearStatue() && !this.chatSystem.isOpen()) {
+      const canOpenCheck = this.chatSystem.getCanOpenChatCheck();
+      const canOpen = canOpenCheck ? canOpenCheck() : true;
+      if (canOpen) {
+        this.chatSystem.openChat();
+      }
+    }
+  };
+
+  private handleMobileActionB = (): void => {
+    // Secondary action: cancel actions
+    if (this.chatSystem?.isOpen()) {
+      this.chatSystem.closeChat();
+    } else if (this.dialogSystem?.isVisible()) {
+      this.dialogSystem.handleAdvance();
+    } else if (this.menuSystem?.isOpen()) {
+      this.menuSystem.toggleMenu();
+    }
+  };
+
+  private handleMobileStart = (): void => {
+    // Start button: activate menu
+    if (this.chatSystem?.isOpen()) return;
+    if (this.dialogSystem?.isVisible()) {
+      this.dialogSystem.handleAdvance();
+    } else if (!this.menuSystem?.isOpen()) {
+      this.menuSystem?.toggleMenu();
+    }
+  };
+
   private initSystems(): void {
     // Initialize menu system
     this.menuSystem = new MenuSystem(this);
@@ -169,7 +288,10 @@ export class GameScene extends Phaser.Scene {
     const serverUrl =
       import.meta.env.VITE_SERVER_URL || "http://localhost:3001";
     debugLog("=== Multiplayer Configuration ===");
-    debugLog("VITE_SERVER_URL:", import.meta.env.VITE_SERVER_URL || "not set (using default)");
+    debugLog(
+      "VITE_SERVER_URL:",
+      import.meta.env.VITE_SERVER_URL || "not set (using default)"
+    );
     debugLog("Using server URL:", serverUrl);
     debugLog("================================");
     this.multiplayerService = new MultiplayerService(serverUrl);
@@ -202,10 +324,7 @@ export class GameScene extends Phaser.Scene {
         debugLog("Adding remote player on join:", playerData.id);
         this.addRemotePlayer(playerData);
       } else {
-        debugWarn(
-          "Attempted to add duplicate remote player:",
-          playerData.id
-        );
+        debugWarn("Attempted to add duplicate remote player:", playerData.id);
       }
     });
 

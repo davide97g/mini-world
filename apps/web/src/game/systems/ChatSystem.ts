@@ -1,10 +1,10 @@
 import Phaser from "phaser";
+import { STATUE_GREETING } from "../config/ChatConfig";
 import {
-  STATUE_PROXIMITY_DISTANCE,
   CHAT_MAX_MESSAGES,
   CHAT_WIDTH,
+  STATUE_PROXIMITY_DISTANCE,
 } from "../config/GameConstants";
-import { STATUE_GREETING } from "../config/ChatConfig";
 import { ChatService } from "../services/ChatService";
 
 interface ChatMessage {
@@ -46,7 +46,10 @@ export class ChatSystem {
     const width = this.scene.cameras.main.width;
     const height = this.scene.cameras.main.height;
 
-    this.chatIconContainer = this.scene.add.container(width - 100, height - 100);
+    this.chatIconContainer = this.scene.add.container(
+      width - 100,
+      height - 100
+    );
     this.chatIconContainer.setScrollFactor(0);
     this.chatIconContainer.setDepth(60);
     this.chatIconContainer.setVisible(false);
@@ -188,10 +191,15 @@ export class ChatSystem {
     inputBg.setStrokeStyle(2, 0x555555);
     this.chatDialogueContainer.add(inputBg);
 
-    this.chatInputField = this.scene.add.text(inputPadding + 10, inputAreaY, "", {
-      font: "14px monospace",
-      color: "#ffffff",
-    });
+    this.chatInputField = this.scene.add.text(
+      inputPadding + 10,
+      inputAreaY,
+      "",
+      {
+        font: "14px monospace",
+        color: "#ffffff",
+      }
+    );
     this.chatInputField.setOrigin(0, 0.5);
     this.chatInputField.setInteractive({ useHandCursor: true });
     this.chatInputField.on("pointerdown", () => {
@@ -235,11 +243,7 @@ export class ChatSystem {
     );
     cKey.on("down", () => {
       const canOpen = this.canOpenChatCheck ? this.canOpenChatCheck() : true;
-      if (
-        this.isNearStatue &&
-        !this.isChatOpen &&
-        canOpen
-      ) {
+      if (this.isNearStatue && !this.isChatOpen && canOpen) {
         this.openChat();
       }
     });
@@ -311,7 +315,7 @@ export class ChatSystem {
     }
   }
 
-  private openChat(): void {
+  public openChat(): void {
     this.isChatOpen = true;
     if (this.chatDialogueContainer) {
       this.chatDialogueContainer.setVisible(true);
@@ -332,7 +336,7 @@ export class ChatSystem {
     }
   }
 
-  private closeChat(): void {
+  public closeChat(): void {
     this.isChatOpen = false;
     if (this.chatDialogueContainer) {
       this.chatDialogueContainer.setVisible(false);
@@ -438,11 +442,16 @@ export class ChatSystem {
     messageBg.fillRoundedRect(bgX, bgY - 20, textWidth, 40, 8);
     messageContainer.add(messageBg);
 
-    const messageText = this.scene.add.text(xPos + (isPlayer ? -10 : 10), 0, text, {
-      font: "12px monospace",
-      color: textColor,
-      wordWrap: { width: maxMessageWidth - 20 },
-    });
+    const messageText = this.scene.add.text(
+      xPos + (isPlayer ? -10 : 10),
+      0,
+      text,
+      {
+        font: "12px monospace",
+        color: textColor,
+        wordWrap: { width: maxMessageWidth - 20 },
+      }
+    );
     messageText.setOrigin(isPlayer ? 1 : 0, 0.5);
     messageContainer.add(messageText);
 
@@ -473,7 +482,12 @@ export class ChatSystem {
     this.canOpenChatCheck = checkFn;
   }
 
-  public getChatBounds(): { x: number; y: number; width: number; height: number } | null {
+  public getChatBounds(): {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null {
     if (!this.chatDialogueContainer) return null;
     return {
       x: this.chatDialogueContainer.x,
@@ -482,5 +496,12 @@ export class ChatSystem {
       height: this.scene.cameras.main.height - 200,
     };
   }
-}
 
+  public getCanOpenChatCheck(): (() => boolean) | undefined {
+    return this.canOpenChatCheck;
+  }
+
+  public getIsNearStatue(): boolean {
+    return this.isNearStatue;
+  }
+}

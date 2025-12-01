@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import Phaser from 'phaser';
 import { createGameConfig } from '../game/GameConfig';
+import MobileControls from './MobileControls';
 
 const Game = () => {
   const gameRef = useRef<HTMLDivElement>(null);
@@ -29,17 +30,43 @@ const Game = () => {
     };
   }, []);
 
+  const handleDirectionChange = (direction: { up: boolean; down: boolean; left: boolean; right: boolean }) => {
+    window.dispatchEvent(
+      new CustomEvent('mobileDirectionChange', { detail: direction })
+    );
+  };
+
+  const handleActionA = () => {
+    window.dispatchEvent(new CustomEvent('mobileActionA'));
+  };
+
+  const handleActionB = () => {
+    window.dispatchEvent(new CustomEvent('mobileActionB'));
+  };
+
+  const handleStart = () => {
+    window.dispatchEvent(new CustomEvent('mobileStart'));
+  };
+
   return (
-    <div
-      id="game-container"
-      ref={gameRef}
-      style={{
-        width: '100vw',
-        height: '100vh',
-        margin: 0,
-        padding: 0,
-      }}
-    />
+    <>
+      <div
+        id="game-container"
+        ref={gameRef}
+        style={{
+          width: '100vw',
+          height: '100vh',
+          margin: 0,
+          padding: 0,
+        }}
+      />
+      <MobileControls
+        onDirectionChange={handleDirectionChange}
+        onActionA={handleActionA}
+        onActionB={handleActionB}
+        onStart={handleStart}
+      />
+    </>
   );
 };
 

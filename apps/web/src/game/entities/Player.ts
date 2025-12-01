@@ -1,9 +1,17 @@
 import Phaser from "phaser";
 import { PLAYER_SPEED } from "../config/GameConstants";
 
+// Type for cursor keys (supports both Phaser and virtual cursor keys)
+type CursorKeys = Phaser.Types.Input.Keyboard.CursorKeys | {
+  up: { isDown: boolean };
+  down: { isDown: boolean };
+  left: { isDown: boolean };
+  right: { isDown: boolean };
+};
+
 export class Player {
   private sprite: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
-  private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
+  private cursors?: CursorKeys;
   private scene: Phaser.Scene;
   private currentDirection?: string;
   private onPositionUpdate?: (x: number, y: number, direction?: string) => void;
@@ -17,7 +25,7 @@ export class Player {
     scene: Phaser.Scene,
     x: number,
     y: number,
-    cursors: Phaser.Types.Input.Keyboard.CursorKeys
+    cursors: CursorKeys
   ) {
     this.scene = scene;
     this.cursors = cursors;
