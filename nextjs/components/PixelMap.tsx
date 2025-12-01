@@ -1,14 +1,15 @@
 "use client";
 
-import { latLonToTile } from "@/lib/coords";
+import { ISO_TILE_HEIGHT, ISO_TILE_WIDTH, latLonToPixel, TILE_SIZE, worldToIso } from "@/lib/coords";
+import { analyzeOSMTile, TerrainType } from "@/lib/osmAnalyzer";
 import { useEffect, useRef, useState } from "react";
 
-const ZOOM = 17; // good level for real-world nearby
-const PIXEL_SIZE = 32; // downscale before pixelating
-const TILE_SIZE = 256; // OSM default
+const ZOOM = 10; // good level for real-world nearby
+const PIXEL_SIZE = 8; // downscale before pixelating (smaller for isometric)
 const WEATHER_ICON_SIZE = 64; // pixel-art icon size
 const WEATHER_ICON_POS = { x: 20, y: 20 }; // position on canvas
-const CANVAS_SIZE = TILE_SIZE * 3;
+const CANVAS_SIZE = 800; // Larger canvas for isometric view
+const PLAYER_HEIGHT_OFFSET = 8; // Offset for player sprite depth
 
 interface WeatherData {
   temperature: number;
@@ -52,16 +53,33 @@ const getWeatherIconName = (weathercode: number): string => {
 
 export default function PixelMap() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [pos, setPos] = useState<{ lat: number; lon: number } | null>(null);
   const [weather, setWeather] = useState<WeatherData | null>(null);
   
-  // Refs for animation loop to avoid stale closures
+  // Game State Refs
+  const playerRef = useRef({ x: 0, y: 0 });
+  const cameraRef = useRef({ x: 0, y: 0 });
+  const loadedTilesRef = useRef<Map<string, HTMLCanvasElement>>(new Map());
+  const loadingTilesRef = useRef<Set<string>>(new Set());
   const weatherRef = useRef<WeatherData | null>(null);
-  const loadedTilesRef = useRef<LoadedTile[]>([]);
+  
+  // Assets Refs
+  const playerImageRef = useRef<HTMLImageElement | null>(null);
   const weatherIconRef = useRef<HTMLImageElement | null>(null);
   const cloudImageRef = useRef<HTMLImageElement | null>(null);
   
-  // Particle systems
+  // Isometric Tile Assets
+  const isoTilesRef = useRef<{
+    grass: HTMLImageElement | null;
+    water: HTMLImageElement | null;
+    road: HTMLImageElement | null;
+    park: HTMLImageElement | null;
+    building: HTMLImageElement | null;
+  }>({ grass: null, water: null, road: null, park: null, building: null });
+  
+  // Terrain Cache: Maps grid position to terrain type from OSM analysis
+  const terrainCacheRef = useRef<Map<string, TerrainType>>(new Map());
+  
+  // Particle Refs
   const raindropsRef = useRef<Particle[]>([]);
   const snowflakesRef = useRef<Particle[]>([]);
   const cloudsRef = useRef<Cloud[]>([]);
@@ -71,111 +89,107 @@ export default function PixelMap() {
     weatherRef.current = weather;
   }, [weather]);
 
-  // 1️⃣ Get user location
+  // 1️⃣ Initialize & Load Assets
   useEffect(() => {
-    navigator.geolocation.getCurrentPosition(
-      (p) => setPos({ lat: p.coords.latitude, lon: p.coords.longitude }),
-      console.error,
-      { enableHighAccuracy: true }
-    );
-  }, []);
+    // Load Player
+    const pImg = new Image();
+    pImg.src = "/player/player.png";
+    pImg.onload = () => { playerImageRef.current = pImg; };
 
-  // 2️⃣ Fetch weather data when position is available
-  useEffect(() => {
-    if (!pos) return;
+    // Load Cloud
+    const cImg = new Image();
+    cImg.src = "/weather/cloudy.png";
+    cImg.onload = () => { cloudImageRef.current = cImg; };
 
-    const fetchWeather = async () => {
-      try {
-        const response = await fetch(
-          `/api/weather?lat=${pos.lat}&lon=${pos.lon}`
-        );
-        if (response.ok) {
-          const data = await response.json();
-          setWeather(data);
-        }
-      } catch (error) {
-        console.error("Failed to fetch weather:", error);
-      }
-    };
+    // Load Isometric Tiles
+    const grassImg = new Image();
+    grassImg.src = "/tiles/grass.png";
+    grassImg.onload = () => { isoTilesRef.current.grass = grassImg; };
+    
+    const waterImg = new Image();
+    waterImg.src = "/tiles/water.png";
+    waterImg.onload = () => { isoTilesRef.current.water = waterImg; };
+    
+    const roadImg = new Image();
+    roadImg.src = "/tiles/road.png";
+    roadImg.onload = () => { isoTilesRef.current.road = roadImg; };
+    
+    const parkImg = new Image();
+    parkImg.src = "/tiles/park.png";
+    parkImg.onload = () => { isoTilesRef.current.park = parkImg; };
+    
+    const buildingImg = new Image();
+    buildingImg.src = "/tiles/building.png";
+    buildingImg.onload = () => { isoTilesRef.current.building = buildingImg; };
 
-    fetchWeather();
-  }, [pos]);
-
-  // 3️⃣ Load assets (Weather Icon & Cloud)
-  useEffect(() => {
-    if (!weather) return;
-
-    // Load Weather Icon
-    const iconName = getWeatherIconName(weather.weathercode);
-    const img = new Image();
-    img.src = `/weather/${iconName}.png`;
-    img.onload = () => {
-      weatherIconRef.current = img;
-    };
-
-    // Load Cloud Image
-    const cloudImg = new Image();
-    cloudImg.src = "/weather/cloudy.png"; // Using cloudy.png as the sprite
-    cloudImg.onload = () => {
-      cloudImageRef.current = cloudImg;
-    };
-
-  }, [weather]);
-
-  // Initialize Particles
-  useEffect(() => {
-    // Raindrops
+    // Initialize Particles
     raindropsRef.current = Array.from({ length: 50 }, () => ({
       x: Math.random() * CANVAS_SIZE,
       y: Math.random() * CANVAS_SIZE,
       speed: 2 + Math.random() * 2
     }));
-
-    // Snowflakes
     snowflakesRef.current = Array.from({ length: 40 }, () => ({
       x: Math.random() * CANVAS_SIZE,
       y: Math.random() * CANVAS_SIZE,
       speed: 1 + Math.random() * 1
     }));
-
-    // Clouds
     cloudsRef.current = Array.from({ length: 3 }, () => ({
       x: Math.random() * CANVAS_SIZE,
-      y: Math.random() * (CANVAS_SIZE / 2), // Top half
+      y: Math.random() * (CANVAS_SIZE / 2),
       speed: 0.5 + Math.random() * 0.5
     }));
   }, []);
 
-  // 4️⃣ Load Map Tiles
+  // 2️⃣ GPS Tracking
   useEffect(() => {
-    if (!pos) return;
-
-    const { x, y } = latLonToTile(pos.lat, pos.lon, ZOOM);
-
-    const tilesToLoad = [
-      [x - 1, y - 1], [x, y - 1], [x + 1, y - 1],
-      [x - 1, y],     [x, y],     [x + 1, y],
-      [x - 1, y + 1], [x, y + 1], [x + 1, y + 1],
-    ];
-
-    async function loadTiles() {
-      const newTiles: LoadedTile[] = [];
-      
-      for (let i = 0; i < tilesToLoad.length; i++) {
-        const [tx, ty] = tilesToLoad[i];
-        const img = await loadTile(tx, ty, ZOOM);
-        if (img) {
-          const pixelated = pixelate(img);
-          const col = i % 3;
-          const row = Math.floor(i / 3);
-          newTiles.push({ col, row, img: pixelated });
+    const id = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        const { x, y } = latLonToPixel(latitude, longitude, ZOOM);
+        
+        // If first fix, set player directly
+        if (playerRef.current.x === 0 && playerRef.current.y === 0) {
+          playerRef.current = { x, y };
+        } else {
+          // Smooth transition could be added here, but direct update for now
+          playerRef.current = { x, y };
         }
-      }
-      loadedTilesRef.current = newTiles;
-    }
 
-    loadTiles();
-  }, [pos]);
+        // Fetch weather if we moved significantly or don't have it
+        if (!weatherRef.current) {
+           fetch(`/api/weather?lat=${latitude}&lon=${longitude}`)
+             .then(res => res.json())
+             .then(setWeather)
+             .catch(console.error);
+        }
+      },
+      console.error,
+      { enableHighAccuracy: true }
+    );
+    return () => navigator.geolocation.clearWatch(id);
+  }, []);
+
+  // 3️⃣ Load Weather Icon
+  useEffect(() => {
+    if (!weather) return;
+    const iconName = getWeatherIconName(weather.weathercode);
+    const img = new Image();
+    img.src = `/weather/${iconName}.png`;
+    img.onload = () => { weatherIconRef.current = img; };
+  }, [weather]);
+
+  // 4️⃣ Virtual Movement (Keyboard)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const step = 10; // pixels
+      if (e.key === 'ArrowUp') playerRef.current.y -= step;
+      if (e.key === 'ArrowDown') playerRef.current.y += step;
+      if (e.key === 'ArrowLeft') playerRef.current.x -= step;
+      if (e.key === 'ArrowRight') playerRef.current.x += step;
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // 5️⃣ Animation Loop
   useEffect(() => {
@@ -188,60 +202,175 @@ export default function PixelMap() {
     let animationFrameId: number;
 
     const render = () => {
+      // 1. Update Camera (now based on isometric coordinates)
+      const screenW = canvas.width;
+      const screenH = canvas.height;
+      
+      // Convert player world position to isometric
+      const playerWorldX = playerRef.current.x / PIXEL_SIZE;
+      const playerWorldY = playerRef.current.y / PIXEL_SIZE;
+      const { isoX: playerIsoX, isoY: playerIsoY } = worldToIso(playerWorldX, playerWorldY);
+      
+      cameraRef.current.x = playerIsoX - screenW / 2;
+      cameraRef.current.y = playerIsoY - screenH / 2;
+
+      const camX = cameraRef.current.x;
+      const camY = cameraRef.current.y;
+
       // Clear canvas
-      ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+      ctx.clearRect(0, 0, screenW, screenH);
 
-      // Draw Map Tiles
-      loadedTilesRef.current.forEach(tile => {
-        ctx.drawImage(
-          tile.img,
-          tile.col * TILE_SIZE,
-          tile.row * TILE_SIZE,
-          TILE_SIZE,
-          TILE_SIZE
-        );
-      });
+      // 2. Draw Isometric Map
+      // Calculate visible world grid bounds
+      const gridSize = 50; // Tiles to render in each direction
+      const centerGridX = Math.floor(playerWorldX);
+      const centerGridY = Math.floor(playerWorldY);
+      
+      // Collect all entities to render (tiles + player) for depth sorting
+      const renderQueue: Array<{
+        depth: number;
+        render: () => void;
+      }> = [];
+      
+      // Add isometric tiles to render queue
+      for (let y = centerGridY - gridSize; y < centerGridY + gridSize; y++) {
+        for (let x = centerGridX - gridSize; x < centerGridX + gridSize; x++) {
+          const { isoX, isoY } = worldToIso(x, y);
+          const screenX = isoX - camX;
+          const screenY = isoY - camY;
+          
+          // Only render if on screen
+          if (screenX > -ISO_TILE_WIDTH && screenX < screenW &&
+              screenY > -ISO_TILE_HEIGHT && screenY < screenH) {
+            
+            const tileKey = `${x},${y}`;
+            
+            // Get terrain type from cache or analyze OSM tile
+            let terrainType: TerrainType = 'grass';
+            
+            if (terrainCacheRef.current.has(tileKey)) {
+              terrainType = terrainCacheRef.current.get(tileKey)!;
+            } else {
+              // Need to analyze OSM tile for this position
+              // Convert grid position back to OSM tile coordinates
+              const worldPixelX = x * PIXEL_SIZE;
+              const worldPixelY = y * PIXEL_SIZE;
+              
+              // Determine which OSM tile this belongs to
+              const osmTileCol = Math.floor(worldPixelX / TILE_SIZE);
+              const osmTileRow = Math.floor(worldPixelY / TILE_SIZE);
+              const osmTileKey = `${osmTileCol},${osmTileRow}`;
+              
+              // Check if we have this OSM tile loaded
+              if (loadedTilesRef.current.has(osmTileKey)) {
+                const osmTile = loadedTilesRef.current.get(osmTileKey)!;
+                
+                // Calculate position within the tile
+                const localX = Math.floor((worldPixelX % TILE_SIZE) / PIXEL_SIZE);
+                const localY = Math.floor((worldPixelY % TILE_SIZE) / PIXEL_SIZE);
+                
+                // Analyze the tile to get terrain map
+                const gridSize = TILE_SIZE / PIXEL_SIZE;
+                const terrainMap = analyzeOSMTile(osmTile, gridSize, gridSize);
+                
+                // Get terrain type for this position
+                if (localY >= 0 && localY < terrainMap.length &&
+                    localX >= 0 && localX < terrainMap[0].length) {
+                  terrainType = terrainMap[localY][localX];
+                  terrainCacheRef.current.set(tileKey, terrainType);
+                }
+              } else if (!loadingTilesRef.current.has(osmTileKey)) {
+                // Load OSM tile if not present
+                loadingTilesRef.current.add(osmTileKey);
+                loadTile(osmTileCol, osmTileRow, ZOOM).then(img => {
+                  loadingTilesRef.current.delete(osmTileKey);
+                  if (img) {
+                    const pixelated = pixelate(img);
+                    loadedTilesRef.current.set(osmTileKey, pixelated);
+                  }
+                });
+              }
+            }
+            
+            // Select tile image based on terrain type
+            let tileImg = isoTilesRef.current.grass;
+            if (terrainType === 'water') tileImg = isoTilesRef.current.water;
+            else if (terrainType === 'road') tileImg = isoTilesRef.current.road;
+            else if (terrainType === 'park') tileImg = isoTilesRef.current.park;
+            else if (terrainType === 'building') tileImg = isoTilesRef.current.building;
+            
+            const depth = y + x; // Depth sorting key
+            
+            renderQueue.push({
+              depth,
+              render: () => {
+                if (tileImg) {
+                  ctx.drawImage(
+                    tileImg,
+                    Math.floor(screenX),
+                    Math.floor(screenY),
+                    ISO_TILE_WIDTH,
+                    ISO_TILE_HEIGHT
+                  );
+                }
+              }
+            });
+          }
+        }
+      }
+      
+      // 3. Add Player to render queue
+      if (playerImageRef.current) {
+        const PLAYER_SIZE = 32;
+        const playerScreenX = screenW / 2 - PLAYER_SIZE / 2;
+        const playerScreenY = screenH / 2 - PLAYER_SIZE / 2 - PLAYER_HEIGHT_OFFSET;
+        const playerDepth = playerWorldY + playerWorldX;
+        
+        renderQueue.push({
+          depth: playerDepth,
+          render: () => {
+            ctx.drawImage(
+              playerImageRef.current!,
+              playerScreenX,
+              playerScreenY,
+              PLAYER_SIZE,
+              PLAYER_SIZE
+            );
+          }
+        });
+      }
+      
+      // Sort by depth and render
+      renderQueue.sort((a, b) => a.depth - b.depth);
+      renderQueue.forEach(item => item.render());
 
+      // 4. Weather Effects & Overlays
       const currentWeather = weatherRef.current;
       if (currentWeather) {
         const code = currentWeather.weathercode;
-        
-        // Determine active effects
         const enableRain = [51,53,55,61,63,65,80,81,82].includes(code);
         const enableSnow = [71,73,75,77,85,86].includes(code);
         const enableClouds = [1, 2, 3].includes(code);
-        
-        // Render Effects
+
         if (enableRain) renderRain(ctx, raindropsRef.current);
         if (enableSnow) renderSnow(ctx, snowflakesRef.current);
         if (enableClouds && cloudImageRef.current) renderClouds(ctx, cloudsRef.current, cloudImageRef.current);
 
-        // Draw Weather Icon
+        // Icon
         if (weatherIconRef.current) {
-          ctx.drawImage(
-            weatherIconRef.current,
-            WEATHER_ICON_POS.x,
-            WEATHER_ICON_POS.y,
-            WEATHER_ICON_SIZE,
-            WEATHER_ICON_SIZE
-          );
+          ctx.drawImage(weatherIconRef.current, WEATHER_ICON_POS.x, WEATHER_ICON_POS.y, WEATHER_ICON_SIZE, WEATHER_ICON_SIZE);
         }
 
-        // Day/Night Cycle
-        if (currentWeather.daily && currentWeather.daily.sunrise && currentWeather.daily.sunset) {
-          const now = new Date().getTime();
-          // Assuming sunrise/sunset are ISO strings, we need to parse them.
-          // Open-Meteo returns local time ISO strings if timezone=auto is used.
-          // But new Date(isoString) works.
-          const sunrise = new Date(currentWeather.daily.sunrise[0]).getTime();
-          const sunset = new Date(currentWeather.daily.sunset[0]).getTime();
-          
-          const brightness = getBrightness(now, sunrise, sunset);
-          
-          if (brightness < 1) {
-            ctx.fillStyle = `rgba(0,0,40,${1 - brightness})`;
-            ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-          }
+        // Day/Night
+        if (currentWeather.daily?.sunrise && currentWeather.daily?.sunset) {
+           const now = new Date().getTime();
+           const sunrise = new Date(currentWeather.daily.sunrise[0]).getTime();
+           const sunset = new Date(currentWeather.daily.sunset[0]).getTime();
+           const brightness = getBrightness(now, sunrise, sunset);
+           if (brightness < 1) {
+             ctx.fillStyle = `rgba(0,0,40,${1 - brightness})`;
+             ctx.fillRect(0, 0, screenW, screenH);
+           }
         }
       }
 
@@ -249,19 +378,16 @@ export default function PixelMap() {
     };
 
     render();
-
-    return () => {
-      cancelAnimationFrame(animationFrameId);
-    };
-  }, []); // Run once on mount, logic depends on refs
+    return () => cancelAnimationFrame(animationFrameId);
+  }, []);
 
   return (
-    <div className="w-full h-full flex items-center justify-center p-4">
+    <div className="w-full h-full flex items-center justify-center bg-black">
       <canvas
         ref={canvasRef}
-        width={CANVAS_SIZE}
+        width={CANVAS_SIZE} // Keep fixed size or make responsive? User prompt implied fixed or screen.
         height={CANVAS_SIZE}
-        style={{ border: "4px solid black", background: "#000" }}
+        className="border-4 border-gray-800 rounded-lg shadow-2xl"
       />
     </div>
   );
