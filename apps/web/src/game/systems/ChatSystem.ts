@@ -32,7 +32,10 @@ export class ChatSystem {
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
-    this.chatService = new ChatService();
+    const serverUrl =
+      import.meta.env.VITE_SERVER_URL || "http://localhost:3001";
+    const apiUrl = `${serverUrl}/api/chat`;
+    this.chatService = new ChatService(apiUrl);
   }
 
   public setStatuePosition(position: { x: number; y: number }): void {
