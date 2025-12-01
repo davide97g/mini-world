@@ -4,7 +4,7 @@ import { ISO_TILE_HEIGHT, ISO_TILE_WIDTH, latLonToPixel, TILE_SIZE, worldToIso }
 import { analyzeOSMTile, TerrainType } from "@/lib/osmAnalyzer";
 import { useEffect, useRef, useState } from "react";
 
-const ZOOM = 10; // good level for real-world nearby
+const ZOOM = 18; // good level for real-world nearby
 const PIXEL_SIZE = 8; // downscale before pixelating (smaller for isometric)
 const WEATHER_ICON_SIZE = 64; // pixel-art icon size
 const WEATHER_ICON_POS = { x: 20, y: 20 }; // position on canvas
@@ -57,6 +57,8 @@ export default function PixelMap() {
   
   // Game State Refs
   const playerRef = useRef({ x: 0, y: 0 });
+  const playerDirectionRef = useRef(0); // 0-7 for 8 directions (0=S, 1=SW, 2=W, 3=NW, 4=N, 5=NE, 6=E, 7=SE)
+  const playerVelocityRef = useRef({ x: 0, y: 0 }); // Current movement direction
   const cameraRef = useRef({ x: 0, y: 0 });
   const loadedTilesRef = useRef<Map<string, HTMLCanvasElement>>(new Map());
   const loadingTilesRef = useRef<Set<string>>(new Set());
@@ -91,9 +93,9 @@ export default function PixelMap() {
 
   // 1️⃣ Initialize & Load Assets
   useEffect(() => {
-    // Load Player
+    // Load Player Sprite Sheet
     const pImg = new Image();
-    pImg.src = "/player/player.png";
+    pImg.src = "/player/Small-8-Direction-Characters_by_AxulArt.png";
     pImg.onload = () => { playerImageRef.current = pImg; };
 
     // Load Cloud
@@ -178,17 +180,67 @@ export default function PixelMap() {
     img.onload = () => { weatherIconRef.current = img; };
   }, [weather]);
 
-  // 4️⃣ Virtual Movement (Keyboard)
+  // 4️⃣ Virtual Movement (Keyboard - 8 directions)
   useEffect(() => {
+    const keys = new Set<string>();
+    
     const handleKeyDown = (e: KeyboardEvent) => {
-      const step = 10; // pixels
-      if (e.key === 'ArrowUp') playerRef.current.y -= step;
-      if (e.key === 'ArrowDown') playerRef.current.y += step;
-      if (e.key === 'ArrowLeft') playerRef.current.x -= step;
-      if (e.key === 'ArrowRight') playerRef.current.x += step;
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        keys.add(e.key);
+      }
     };
+    
+    const handleKeyUp = (e: KeyboardEvent) => {
+      keys.delete(e.key);
+    };
+    
+    // Update player velocity and direction based on keys
+    const updateMovement = () => {
+      const step = 10; // pixels per frame
+      let vx = 0;
+      let vy = 0;
+      
+      if (keys.has('ArrowUp')) vy -= 1;
+      if (keys.has('ArrowDown')) vy += 1;
+      if (keys.has('ArrowLeft')) vx -= 1;
+      if (keys.has('ArrowRight')) vx += 1;
+      
+      // Normalize diagonal movement
+      if (vx !== 0 && vy !== 0) {
+        const len = Math.sqrt(vx * vx + vy * vy);
+        vx /= len;
+        vy /= len;
+      }
+      
+      playerVelocityRef.current = { x: vx, y: vy };
+      
+      // Update position
+      playerRef.current.x += vx * step;
+      playerRef.current.y += vy * step;
+      
+      // Calculate direction (0-7) based on velocity
+      if (vx !== 0 || vy !== 0) {
+        // Calculate angle in radians
+        const angle = Math.atan2(vy, vx);
+        // Convert to 8 directions (0=South, clockwise)
+        // We need to rotate by 90 degrees and flip to match sprite sheet
+        let dir = Math.round((angle + Math.PI) / (Math.PI / 4)) % 8;
+        // Adjust mapping to match sprite sheet layout
+        // Sprite sheet order: S, SW, W, NW, N, NE, E, SE
+        playerDirectionRef.current = dir;
+      }
+    };
+    
+    const interval = setInterval(updateMovement, 16); // ~60fps
+    
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
   }, []);
 
   // 5️⃣ Animation Loop
@@ -321,7 +373,20 @@ export default function PixelMap() {
       
       // 3. Add Player to render queue
       if (playerImageRef.current) {
-        const PLAYER_SIZE = 32;
+        // Sprite sheet layout: 8 rows (one per direction), 3 columns (animation frames)
+        // Each sprite is 48x48 pixels
+        // We're using the first character (leftmost section)
+        const SPRITE_WIDTH = 48;
+        const SPRITE_HEIGHT = 48;
+        const PLAYER_SIZE = 32; // Render size
+        
+        const direction = playerDirectionRef.current;
+        
+        // Calculate sprite position in sheet
+        // Using middle frame (column 1) for now - you can animate later
+        const srcX = SPRITE_WIDTH; // Middle frame
+        const srcY = direction * SPRITE_HEIGHT; // Row based on direction
+        
         const playerScreenX = screenW / 2 - PLAYER_SIZE / 2;
         const playerScreenY = screenH / 2 - PLAYER_SIZE / 2 - PLAYER_HEIGHT_OFFSET;
         const playerDepth = playerWorldY + playerWorldX;
@@ -331,10 +396,8 @@ export default function PixelMap() {
           render: () => {
             ctx.drawImage(
               playerImageRef.current!,
-              playerScreenX,
-              playerScreenY,
-              PLAYER_SIZE,
-              PLAYER_SIZE
+              srcX, srcY, SPRITE_WIDTH, SPRITE_HEIGHT, // Source rectangle
+              playerScreenX, playerScreenY, PLAYER_SIZE, PLAYER_SIZE // Destination rectangle
             );
           }
         });
