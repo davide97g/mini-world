@@ -4,10 +4,10 @@ export class RemotePlayer {
   private sprite: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
   private scene: Phaser.Scene;
   private id: string;
-  private targetX: number;
-  private targetY: number;
+  protected targetX: number;
+  protected targetY: number;
   private currentDirection?: string;
-  private lastMovementTime: number = 0;
+  protected lastMovementTime: number = 0;
   private idleTimer?: Phaser.Time.TimerEvent;
 
   constructor(
@@ -31,7 +31,7 @@ export class RemotePlayer {
       .setTint(0x8888ff); // Slight tint to distinguish from local player
 
     this.createAnimations();
-    
+
     // If no direction is provided, ensure we're in idle state
     if (!direction) {
       this.sprite.anims.stop();
@@ -40,7 +40,7 @@ export class RemotePlayer {
 
   private createAnimations(): void {
     const anims = this.scene.anims;
-    
+
     // Check if animations already exist to avoid duplicates
     if (!anims.exists("misa-left-walk")) {
       anims.create({
@@ -201,4 +201,3 @@ export class RemotePlayer {
     return { x: this.sprite.x, y: this.sprite.y };
   }
 }
-

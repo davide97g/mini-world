@@ -42,7 +42,7 @@ export class MultiplayerService {
       console.log("Connected to multiplayer server");
       this.isConnected = true;
       if (this.socket) {
-        this.socketId = this.socket.id;
+        this.socketId = this.socket.id || null;
         console.log("Socket ID:", this.socketId);
       }
     });
@@ -142,4 +142,3 @@ export class MultiplayerService {
     );
   }
 }
-

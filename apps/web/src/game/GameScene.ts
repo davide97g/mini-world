@@ -8,14 +8,11 @@ import Phaser from "phaser";
 import { ASSET_PATHS } from "./config/AssetPaths";
 import { Player } from "./entities/Player";
 import { RemotePlayer } from "./entities/RemotePlayer";
+import { MultiplayerService, PlayerData } from "./services/MultiplayerService";
 import { ChatSystem } from "./systems/ChatSystem";
 import { DialogSystem } from "./systems/DialogSystem";
 import { MenuSystem } from "./systems/MenuSystem";
 import { WeatherSystem } from "./systems/WeatherSystem";
-import {
-  MultiplayerService,
-  PlayerData,
-} from "./services/MultiplayerService";
 
 export class GameScene extends Phaser.Scene {
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -161,7 +158,8 @@ export class GameScene extends Phaser.Scene {
 
   private initMultiplayer(): void {
     // Initialize multiplayer service
-    const serverUrl = import.meta.env.VITE_SERVER_URL || "http://localhost:3001";
+    const serverUrl =
+      import.meta.env.VITE_SERVER_URL || "http://localhost:3001";
     this.multiplayerService = new MultiplayerService(serverUrl);
 
     // Set up callbacks
@@ -192,7 +190,10 @@ export class GameScene extends Phaser.Scene {
         console.log("Adding remote player on join:", playerData.id);
         this.addRemotePlayer(playerData);
       } else {
-        console.warn("Attempted to add duplicate remote player:", playerData.id);
+        console.warn(
+          "Attempted to add duplicate remote player:",
+          playerData.id
+        );
       }
     });
 
@@ -251,7 +252,13 @@ export class GameScene extends Phaser.Scene {
       return; // Player already exists
     }
 
-    console.log("Creating remote player:", playerData.id, "at", playerData.x, playerData.y);
+    console.log(
+      "Creating remote player:",
+      playerData.id,
+      "at",
+      playerData.x,
+      playerData.y
+    );
     const remotePlayer = new RemotePlayer(
       this,
       playerData.id,
@@ -261,10 +268,10 @@ export class GameScene extends Phaser.Scene {
     );
 
     // Add collision with world layer
-    const worldLayer = this.gameMap?.getLayer("World");
-    if (worldLayer) {
-      this.physics.add.collider(remotePlayer.getSprite(), worldLayer);
-    }
+    // const worldLayer = this.gameMap?.getLayer("World");
+    // if (worldLayer) {
+    //   this.physics.add.collider(remotePlayer.getSprite(), worldLayer);
+    // }
 
     this.remotePlayers.set(playerData.id, remotePlayer);
     console.log("Total remote players:", this.remotePlayers.size);
@@ -374,7 +381,10 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.input.keyboard!.once("keydown", (event: KeyboardEvent) => {
-      if ((event.key === "d" || event.key === "D") && (event.metaKey || event.ctrlKey)) {
+      if (
+        (event.key === "d" || event.key === "D") &&
+        (event.metaKey || event.ctrlKey)
+      ) {
         this.physics.world.createDebugGraphic();
 
         const worldLayer = this.gameMap?.getLayer("World");
