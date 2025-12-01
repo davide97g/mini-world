@@ -70,9 +70,13 @@ export class GameScene extends Phaser.Scene {
   private remotePlayers: Map<string, RemotePlayer> = new Map();
 
   // Music
-  private mainThemeMusic?: Phaser.Sound.HTML5AudioSound;
+  private mainThemeMusic?: Phaser.Sound.WebAudioSound;
   private isMusicPlaying = false;
   private musicVolume = 0.5; // Default volume (0-1)
+  private audioContextCheckInterval?: number;
+  private isMuted = false;
+  private volumeIconContainer?: Phaser.GameObjects.Container;
+  private volumeIconGraphics?: Phaser.GameObjects.Graphics;
 
   constructor() {
     super({ key: "GameScene" });
@@ -102,6 +106,11 @@ export class GameScene extends Phaser.Scene {
     // Stop music
     if (this.mainThemeMusic && this.mainThemeMusic.isPlaying) {
       this.mainThemeMusic.stop();
+    }
+
+    // Clean up audio context check interval
+    if (this.audioContextCheckInterval !== undefined) {
+      clearInterval(this.audioContextCheckInterval);
     }
   }
 
@@ -190,9 +199,15 @@ export class GameScene extends Phaser.Scene {
 
     // Initialize music
     this.initMusic();
-
+    
     // Start music after game loads
     this.startMusic();
+    
+    // Ensure music continues when tab loses focus
+    this.setupBackgroundAudio();
+    
+    // Create volume toggle icon
+    this.createVolumeToggleIcon();
 
     if (oldStatue) {
       this.chatSystem?.setStatuePosition({
@@ -588,11 +603,29 @@ export class GameScene extends Phaser.Scene {
       this.musicVolume = parseFloat(savedVolume);
     }
 
-    // Create music instance
+    // Load mute state from localStorage
+    const savedMuted = localStorage.getItem("musicMuted");
+    if (savedMuted === "true") {
+      this.isMuted = true;
+    }
+
+    // Create music instance using Web Audio API for background playback
+    // Start with volume 0 if muted, otherwise use saved volume
+    const initialVolume = this.isMuted ? 0 : this.musicVolume;
     this.mainThemeMusic = this.sound.add("mainTheme", {
       loop: true,
-      volume: this.musicVolume,
-    }) as Phaser.Sound.HTML5AudioSound;
+      volume: initialVolume,
+    }) as Phaser.Sound.WebAudioSound;
+
+    // Ensure Web Audio context stays active
+    try {
+      const soundManager = this.sound as Phaser.Sound.WebAudioSoundManager;
+      if (soundManager && soundManager.context && soundManager.context.state === "suspended") {
+        soundManager.context.resume();
+      }
+    } catch (e) {
+      // Fallback if context is not available
+    }
   }
 
   private startMusic(): void {
@@ -605,7 +638,10 @@ export class GameScene extends Phaser.Scene {
   public setMusicVolume(volume: number): void {
     this.musicVolume = Math.max(0, Math.min(1, volume)); // Clamp between 0 and 1
     if (this.mainThemeMusic) {
-      this.mainThemeMusic.setVolume(this.musicVolume);
+      // Only set volume if not muted
+      if (!this.isMuted) {
+        this.mainThemeMusic.setVolume(this.musicVolume);
+      }
     }
     // Save to localStorage
     localStorage.setItem("musicVolume", this.musicVolume.toString());
@@ -613,5 +649,204 @@ export class GameScene extends Phaser.Scene {
 
   public getMusicVolume(): number {
     return this.musicVolume;
+  }
+
+  public toggleMute(): void {
+    this.isMuted = !this.isMuted;
+    if (this.mainThemeMusic) {
+      if (this.isMuted) {
+        this.mainThemeMusic.setVolume(0);
+      } else {
+        this.mainThemeMusic.setVolume(this.musicVolume);
+      }
+    }
+    this.updateVolumeIcon();
+    // Save mute state to localStorage
+    localStorage.setItem("musicMuted", this.isMuted.toString());
+  }
+
+  public isMutedState(): boolean {
+    return this.isMuted;
+  }
+
+  private createVolumeToggleIcon(): void {
+    const iconSize = 40;
+    const padding = 16;
+    const x = padding + iconSize / 2;
+    const y = padding + iconSize / 2;
+
+    this.volumeIconContainer = this.add.container(x, y);
+    this.volumeIconContainer.setScrollFactor(0);
+    this.volumeIconContainer.setDepth(100);
+    this.volumeIconContainer.setInteractive(
+      new Phaser.Geom.Rectangle(-iconSize / 2, -iconSize / 2, iconSize, iconSize),
+      Phaser.Geom.Rectangle.Contains
+    );
+    this.volumeIconContainer.setInteractive({ useHandCursor: true });
+
+    // Background
+    const bg = this.add.rectangle(0, 0, iconSize, iconSize, 0x333333, 0.9);
+    bg.setStrokeStyle(2, 0x666666);
+    this.volumeIconContainer.add(bg);
+
+    // Volume icon graphics
+    this.volumeIconGraphics = this.add.graphics();
+    this.volumeIconContainer.add(this.volumeIconGraphics);
+
+    // Mute state is already loaded in initMusic, just update the icon
+    if (this.isMuted && this.mainThemeMusic) {
+      this.mainThemeMusic.setVolume(0);
+    }
+
+    this.updateVolumeIcon();
+
+    // Click handler
+    this.volumeIconContainer.on("pointerdown", () => {
+      this.toggleMute();
+    });
+
+    // Hover effect
+    this.volumeIconContainer.on("pointerover", () => {
+      bg.setFillStyle(0x444444, 0.9);
+    });
+
+    this.volumeIconContainer.on("pointerout", () => {
+      bg.setFillStyle(0x333333, 0.9);
+    });
+  }
+
+  private updateVolumeIcon(): void {
+    if (!this.volumeIconGraphics) return;
+
+    this.volumeIconGraphics.clear();
+
+    const iconSize = 24;
+    const centerX = 0;
+    const centerY = 0;
+
+    if (this.isMuted) {
+      // Muted icon: speaker with X
+      this.volumeIconGraphics.lineStyle(3, 0xffffff, 1);
+      
+      // Speaker base
+      this.volumeIconGraphics.beginPath();
+      this.volumeIconGraphics.moveTo(centerX - iconSize / 3, centerY - iconSize / 4);
+      this.volumeIconGraphics.lineTo(centerX - iconSize / 2, centerY - iconSize / 2);
+      this.volumeIconGraphics.lineTo(centerX - iconSize / 2, centerY + iconSize / 2);
+      this.volumeIconGraphics.lineTo(centerX - iconSize / 3, centerY + iconSize / 4);
+      this.volumeIconGraphics.closePath();
+      this.volumeIconGraphics.strokePath();
+
+      // Speaker cone
+      this.volumeIconGraphics.beginPath();
+      this.volumeIconGraphics.moveTo(centerX - iconSize / 3, centerY - iconSize / 4);
+      this.volumeIconGraphics.lineTo(centerX, centerY - iconSize / 3);
+      this.volumeIconGraphics.lineTo(centerX, centerY + iconSize / 3);
+      this.volumeIconGraphics.lineTo(centerX - iconSize / 3, centerY + iconSize / 4);
+      this.volumeIconGraphics.closePath();
+      this.volumeIconGraphics.strokePath();
+
+      // X mark
+      this.volumeIconGraphics.lineStyle(3, 0xff6666, 1);
+      this.volumeIconGraphics.beginPath();
+      this.volumeIconGraphics.moveTo(centerX + iconSize / 6, centerY - iconSize / 6);
+      this.volumeIconGraphics.lineTo(centerX + iconSize / 2, centerY - iconSize / 2);
+      this.volumeIconGraphics.moveTo(centerX + iconSize / 6, centerY + iconSize / 6);
+      this.volumeIconGraphics.lineTo(centerX + iconSize / 2, centerY + iconSize / 2);
+      this.volumeIconGraphics.moveTo(centerX + iconSize / 2, centerY - iconSize / 2);
+      this.volumeIconGraphics.lineTo(centerX + iconSize / 6, centerY + iconSize / 6);
+      this.volumeIconGraphics.moveTo(centerX + iconSize / 2, centerY + iconSize / 2);
+      this.volumeIconGraphics.lineTo(centerX + iconSize / 6, centerY - iconSize / 6);
+      this.volumeIconGraphics.strokePath();
+    } else {
+      // Unmuted icon: speaker with sound waves
+      this.volumeIconGraphics.lineStyle(3, 0xffffff, 1);
+      
+      // Speaker base
+      this.volumeIconGraphics.beginPath();
+      this.volumeIconGraphics.moveTo(centerX - iconSize / 3, centerY - iconSize / 4);
+      this.volumeIconGraphics.lineTo(centerX - iconSize / 2, centerY - iconSize / 2);
+      this.volumeIconGraphics.lineTo(centerX - iconSize / 2, centerY + iconSize / 2);
+      this.volumeIconGraphics.lineTo(centerX - iconSize / 3, centerY + iconSize / 4);
+      this.volumeIconGraphics.closePath();
+      this.volumeIconGraphics.strokePath();
+
+      // Speaker cone
+      this.volumeIconGraphics.beginPath();
+      this.volumeIconGraphics.moveTo(centerX - iconSize / 3, centerY - iconSize / 4);
+      this.volumeIconGraphics.lineTo(centerX, centerY - iconSize / 3);
+      this.volumeIconGraphics.lineTo(centerX, centerY + iconSize / 3);
+      this.volumeIconGraphics.lineTo(centerX - iconSize / 3, centerY + iconSize / 4);
+      this.volumeIconGraphics.closePath();
+      this.volumeIconGraphics.strokePath();
+
+      // Sound waves
+      this.volumeIconGraphics.lineStyle(2, 0xffffff, 1);
+      this.volumeIconGraphics.beginPath();
+      this.volumeIconGraphics.arc(centerX, centerY, iconSize / 4, -Math.PI / 4, Math.PI / 4, false);
+      this.volumeIconGraphics.strokePath();
+      this.volumeIconGraphics.beginPath();
+      this.volumeIconGraphics.arc(centerX, centerY, iconSize / 2.5, -Math.PI / 3, Math.PI / 3, false);
+      this.volumeIconGraphics.strokePath();
+    }
+  }
+
+  private setupBackgroundAudio(): void {
+    // Keep Web Audio context active (like YouTube does)
+    const keepAudioContextActive = () => {
+      try {
+        const soundManager = this.sound as Phaser.Sound.WebAudioSoundManager;
+        if (soundManager && soundManager.context && soundManager.context.state === "suspended") {
+          soundManager.context.resume();
+        }
+      } catch (e) {
+        // Fallback if context is not available
+      }
+    };
+
+    // Handle visibility changes
+    document.addEventListener("visibilitychange", () => {
+      keepAudioContextActive();
+      if (!document.hidden && this.mainThemeMusic && !this.isMusicPlaying) {
+        this.startMusic();
+      }
+    });
+
+    // Handle window focus/blur events (for switching between windows)
+    window.addEventListener("blur", () => {
+      // Keep audio context active even when window loses focus
+      keepAudioContextActive();
+      if (this.mainThemeMusic && this.isMusicPlaying) {
+        // Ensure music continues playing
+        if (this.mainThemeMusic.isPaused) {
+          this.mainThemeMusic.resume();
+        }
+      }
+    });
+
+    window.addEventListener("focus", () => {
+      keepAudioContextActive();
+      if (this.mainThemeMusic && !this.isMusicPlaying) {
+        this.startMusic();
+      }
+    });
+
+    // Prevent audio from being paused by browser
+    if (this.mainThemeMusic) {
+      this.sound.on("pauseall", () => {
+        keepAudioContextActive();
+        if (this.mainThemeMusic && this.isMusicPlaying) {
+          this.mainThemeMusic.resume();
+        }
+      });
+    }
+
+    // Periodically check and resume audio context (like YouTube does)
+    this.audioContextCheckInterval = window.setInterval(() => {
+      keepAudioContextActive();
+      if (this.mainThemeMusic && this.isMusicPlaying && this.mainThemeMusic.isPaused) {
+        this.mainThemeMusic.resume();
+      }
+    }, 1000); // Check every second
   }
 }

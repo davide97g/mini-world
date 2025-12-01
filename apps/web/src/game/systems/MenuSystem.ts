@@ -103,9 +103,7 @@ export class MenuSystem {
         const maxIndex =
           this.currentMenuState === "options" ? 1 : MENU_ENTRIES.length - 1;
         this.selectedMenuIndex =
-          this.selectedMenuIndex > 0
-            ? this.selectedMenuIndex - 1
-            : maxIndex;
+          this.selectedMenuIndex > 0 ? this.selectedMenuIndex - 1 : maxIndex;
         this.updateMenuSelection();
       }
     });
@@ -268,9 +266,12 @@ export class MenuSystem {
       );
       this.volumeSliderBar.setStrokeStyle(1, 0x666666);
       this.volumeSliderBar.setInteractive({ useHandCursor: true });
-      this.volumeSliderBar.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-        this.updateSliderFromPointer(pointer.x);
-      });
+      this.volumeSliderBar.on(
+        "pointerdown",
+        (pointer: Phaser.Input.Pointer) => {
+          this.updateSliderFromPointer(pointer.x);
+        }
+      );
       this.volumeSliderContainer.add(this.volumeSliderBar);
 
       // Slider handle
@@ -338,13 +339,16 @@ export class MenuSystem {
   }
 
   private updateSliderPosition(volume: number): void {
-    if (!this.volumeSliderBar || !this.volumeSliderHandle || !this.volumeSliderValue) {
+    if (
+      !this.volumeSliderBar ||
+      !this.volumeSliderHandle ||
+      !this.volumeSliderValue
+    ) {
       return;
     }
 
     const sliderWidth = this.volumeSliderBar.width - 16;
     const sliderX = this.volumeSliderBar.x - this.volumeSliderBar.width / 2 + 8;
-    const sliderY = this.volumeSliderBar.y;
 
     const handleX = sliderX + volume * sliderWidth;
     this.volumeSliderHandle.x = handleX;
@@ -354,14 +358,19 @@ export class MenuSystem {
   }
 
   private updateSliderFromPointer(pointerX: number): void {
-    if (!this.volumeSliderBar || !this.volumeSliderHandle || !this.volumeSliderContainer) {
+    if (
+      !this.volumeSliderBar ||
+      !this.volumeSliderHandle ||
+      !this.volumeSliderContainer
+    ) {
       return;
     }
 
     // Convert screen coordinates to container-local coordinates
     const containerX = this.volumeSliderContainer.x;
     const sliderWidth = this.volumeSliderBar.width - 16;
-    const sliderStartX = containerX + this.volumeSliderBar.x - this.volumeSliderBar.width / 2 + 8;
+    const sliderStartX =
+      containerX + this.volumeSliderBar.x - this.volumeSliderBar.width / 2 + 8;
 
     let volume = (pointerX - sliderStartX) / sliderWidth;
     volume = Math.max(0, Math.min(1, volume));
@@ -421,8 +430,9 @@ export class MenuSystem {
     return this.isMenuOpen;
   }
 
-  public setOnMenuSelect(callback: (text: string, speaker?: string) => void): void {
+  public setOnMenuSelect(
+    callback: (text: string, speaker?: string) => void
+  ): void {
     this.onMenuSelect = callback;
   }
 }
-

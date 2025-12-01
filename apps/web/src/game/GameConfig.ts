@@ -16,5 +16,9 @@ export const createGameConfig = (
       gravity: { y: 0, x: 0 },
     },
   },
+  audio: {
+    disableWebAudio: false, // Use Web Audio API for better background playback
+    noAudio: false,
+  },
   scene: [PreloaderScene, GameScene],
 });
