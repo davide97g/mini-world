@@ -8,6 +8,16 @@ export interface KeyboardState {
   space: boolean;
   enter: boolean;
   escape: boolean;
+  i: boolean;
+  I: boolean;
+  c: boolean;
+  C: boolean;
+  m: boolean;
+  M: boolean;
+  n: boolean;
+  N: boolean;
+  p: boolean;
+  P: boolean;
   [key: string]: boolean;
 }
 
@@ -20,6 +30,16 @@ export function useKeyboard() {
     space: false,
     enter: false,
     escape: false,
+    i: false,
+    I: false,
+    c: false,
+    C: false,
+    m: false,
+    M: false,
+    n: false,
+    N: false,
+    p: false,
+    P: false,
   });
 
   useEffect(() => {

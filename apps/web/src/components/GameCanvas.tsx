@@ -87,7 +87,7 @@ export function GameCanvas() {
 
         // Load tilemap
         try {
-          await tilemapRenderer.current.loadMap("/tilemaps/tuxemon-town.json");
+          await tilemapRenderer.current.loadMap("/tilemaps/main-map.json");
         } catch (err) {
           assetsLoadedRef.current = false; // Reset on error
           throw new Error(
