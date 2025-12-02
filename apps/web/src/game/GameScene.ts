@@ -151,7 +151,6 @@ export class GameScene extends Phaser.Scene {
   }> = [];
   private magicSignTooltip?: Phaser.GameObjects.Container;
   private isNearMagicSign = false;
-  private currentMagicSignPosition?: { x: number; y: number };
 
   constructor() {
     super({ key: "GameScene" });
@@ -1616,8 +1615,8 @@ export class GameScene extends Phaser.Scene {
 
     const playerPos = this.player.getPosition();
     const playerDirection = this.player.getDirection();
-    const tileWidth = this.gameMap?.tileWidth || 32;
-    const tileHeight = this.gameMap?.tileHeight || 32;
+    // const tileWidth = this.gameMap?.tileWidth || 32;
+    // const tileHeight = this.gameMap?.tileHeight || 32;
     const PROXIMITY_DISTANCE = 40; // pixels
 
     let nearestSign: {
@@ -1672,10 +1671,6 @@ export class GameScene extends Phaser.Scene {
     // Update tooltip visibility
     if (nearestSign) {
       this.isNearMagicSign = true;
-      this.currentMagicSignPosition = {
-        x: nearestSign.worldX,
-        y: nearestSign.worldY,
-      };
 
       if (this.magicSignTooltip) {
         // Convert world position to screen position
@@ -1688,7 +1683,6 @@ export class GameScene extends Phaser.Scene {
       }
     } else {
       this.isNearMagicSign = false;
-      this.currentMagicSignPosition = undefined;
       if (this.magicSignTooltip) {
         this.magicSignTooltip.setVisible(false);
       }
