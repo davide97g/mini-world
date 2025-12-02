@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { MENU_DIALOG_TEXTS, MENU_ENTRIES } from "../config/game";
 import { useKeyboard } from "../hooks/useKeyboard";
 import { Card } from "./ui/card";
@@ -26,6 +26,40 @@ export function GameMenu({ isOpen, onClose, onSelect }: GameMenuProps) {
       setSelectedIndex(0);
     }
   }, [isOpen]);
+
+  const handleSelect = useCallback(() => {
+    if (menuState === "main") {
+      const entry = MENU_ENTRIES[selectedIndex];
+      if (entry === "Options") {
+        setMenuState("options");
+        setSelectedIndex(0);
+      } else {
+        const text = MENU_DIALOG_TEXTS[entry];
+        onSelect(text, entry === "Red" ? undefined : entry);
+        onClose();
+      }
+    } else if (menuState === "options") {
+      if (selectedIndex === 0) {
+        // Volume
+        setMenuState("volume");
+      } else {
+        // Back
+        setMenuState("main");
+        setSelectedIndex(0);
+      }
+    }
+  }, [menuState, selectedIndex, onSelect, onClose]);
+
+  const handleBack = useCallback(() => {
+    if (menuState === "volume") {
+      setMenuState("options");
+    } else if (menuState === "options") {
+      setMenuState("main");
+      setSelectedIndex(0);
+    } else {
+      onClose();
+    }
+  }, [menuState, onClose]);
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -59,41 +93,7 @@ export function GameMenu({ isOpen, onClose, onSelect }: GameMenuProps) {
       handleBack();
       setLastKeyTime(now);
     }
-  }, [keys, isOpen, menuState, lastKeyTime]);
-
-  const handleSelect = () => {
-    if (menuState === "main") {
-      const entry = MENU_ENTRIES[selectedIndex];
-      if (entry === "Options") {
-        setMenuState("options");
-        setSelectedIndex(0);
-      } else {
-        const text = MENU_DIALOG_TEXTS[entry];
-        onSelect(text, entry === "Red" ? undefined : entry);
-        onClose();
-      }
-    } else if (menuState === "options") {
-      if (selectedIndex === 0) {
-        // Volume
-        setMenuState("volume");
-      } else {
-        // Back
-        setMenuState("main");
-        setSelectedIndex(0);
-      }
-    }
-  };
-
-  const handleBack = () => {
-    if (menuState === "volume") {
-      setMenuState("options");
-    } else if (menuState === "options") {
-      setMenuState("main");
-      setSelectedIndex(0);
-    } else {
-      onClose();
-    }
-  };
+  }, [keys, isOpen, menuState, lastKeyTime, handleBack, handleSelect]);
 
   if (!isOpen) return null;
 
@@ -121,21 +121,32 @@ export function GameMenu({ isOpen, onClose, onSelect }: GameMenuProps) {
           <ul className="space-y-1">
             {(menuState === "options" ? ["Volume", "Back"] : MENU_ENTRIES).map(
               (entry, index) => (
-                <li
-                  key={entry}
-                  className={`px-2 py-1 rounded cursor-pointer text-sm font-mono ${
-                    index === selectedIndex
-                      ? "bg-gray-700 text-white"
-                      : "text-gray-800 hover:bg-gray-200"
-                  }`}
-                  onClick={() => {
-                    setSelectedIndex(index);
-                    if (index === selectedIndex) handleSelect();
-                  }}
-                  onMouseEnter={() => setSelectedIndex(index)}
-                >
-                  {index === selectedIndex ? "► " : "  "}
-                  {entry}
+                <li key={entry} role="none">
+                  <button
+                    type="button"
+                    className={`w-full text-left px-2 py-1 rounded cursor-pointer text-sm font-mono ${
+                      index === selectedIndex
+                        ? "bg-gray-700 text-white"
+                        : "text-gray-800 hover:bg-gray-200"
+                    }`}
+                    onClick={() => {
+                      setSelectedIndex(index);
+                      if (index === selectedIndex) handleSelect();
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelectedIndex(index);
+                        if (index === selectedIndex) handleSelect();
+                      }
+                    }}
+                    onMouseEnter={() => setSelectedIndex(index)}
+                    aria-label={entry}
+                    role="menuitem"
+                  >
+                    {index === selectedIndex ? "► " : "  "}
+                    {entry}
+                  </button>
                 </li>
               ),
             )}

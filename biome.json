@@ -12,7 +12,8 @@
       "!!**/dist",
       "!!**/.turbo",
       "!!**/build",
-      "!!**/*.lock"
+      "!!**/*.lock",
+      "!!**/*.css"
     ]
   },
   "formatter": {
@@ -38,6 +39,9 @@
     }
   },
   "css": {
+    "parser": {
+      "allowWrongLineComments": true
+    },
     "linter": {
       "enabled": false
     }

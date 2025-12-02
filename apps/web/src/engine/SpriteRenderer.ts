@@ -28,18 +28,40 @@ export class SpriteRenderer {
   private animations: Map<string, Animation> = new Map();
 
   async loadAtlas(atlasPath: string, imagePath: string): Promise<void> {
-    // Load atlas JSON
-    const response = await fetch(atlasPath);
-    this.atlas = await response.json();
+    try {
+      // Load atlas JSON
+      const response = await fetch(atlasPath);
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch atlas JSON: ${response.status} ${response.statusText}`,
+        );
+      }
+      this.atlas = await response.json();
 
-    // Load sprite sheet image
-    this.image = new Image();
-    await new Promise((resolve, reject) => {
-      if (!this.image) return reject();
-      this.image.onload = resolve;
-      this.image.onerror = reject;
-      this.image.src = imagePath;
-    });
+      // Load sprite sheet image
+      this.image = new Image();
+      await new Promise((resolve, reject) => {
+        if (!this.image) {
+          return reject(new Error("Failed to create image element"));
+        }
+        this.image.onload = resolve;
+        this.image.onerror = () => {
+          reject(
+            new Error(
+              `Failed to load sprite image from ${imagePath}. Check that the file exists.`,
+            ),
+          );
+        };
+        this.image.src = imagePath;
+      });
+    } catch (err) {
+      if (err instanceof TypeError && err.message.includes("fetch")) {
+        throw new Error(
+          `Network error loading atlas from ${atlasPath}. Is the dev server running?`,
+        );
+      }
+      throw err;
+    }
   }
 
   createAnimation(

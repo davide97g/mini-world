@@ -58,21 +58,59 @@ export function GameCanvas() {
     escape: keyboardKeys.escape || mobileKeys.escape,
   };
 
+  // Track if assets are already loaded to prevent duplicate loads
+  const assetsLoadedRef = useRef(false);
+
   // Load assets
   useEffect(() => {
+    // Prevent multiple loads
+    if (assetsLoadedRef.current) return;
+
     const loadAssets = async () => {
+      // Set flag immediately to prevent concurrent loads
+      assetsLoadedRef.current = true;
+
       try {
         setLoading(true);
+        setError(null);
 
         // Load tilemap
-        await tilemapRenderer.current.loadMap("/tilemaps/tuxemon-town.json");
-        await tilemapRenderer.current.loadTilesets("/tilesets");
+        try {
+          await tilemapRenderer.current.loadMap("/tilemaps/tuxemon-town.json");
+        } catch (err) {
+          assetsLoadedRef.current = false; // Reset on error
+          throw new Error(
+            `Failed to load tilemap: ${
+              err instanceof Error ? err.message : "Unknown error"
+            }`,
+          );
+        }
+
+        try {
+          await tilemapRenderer.current.loadTilesets("/tilesets");
+        } catch (err) {
+          assetsLoadedRef.current = false; // Reset on error
+          throw new Error(
+            `Failed to load tilesets: ${
+              err instanceof Error ? err.message : "Unknown error"
+            }`,
+          );
+        }
 
         // Load sprites
-        await spriteRenderer.current.loadAtlas(
-          "/atlas/atlas.json",
-          "/atlas/atlas.png",
-        );
+        try {
+          await spriteRenderer.current.loadAtlas(
+            "/atlas/atlas.json",
+            "/atlas/atlas.png",
+          );
+        } catch (err) {
+          assetsLoadedRef.current = false; // Reset on error
+          throw new Error(
+            `Failed to load sprite atlas: ${
+              err instanceof Error ? err.message : "Unknown error"
+            }`,
+          );
+        }
 
         // Create player animations
         spriteRenderer.current.createAnimation(
@@ -123,14 +161,17 @@ export function GameCanvas() {
         setLoading(false);
       } catch (err) {
         console.error("Failed to load assets:", err);
-        setError(
-          err instanceof Error ? err.message : "Failed to load game assets",
-        );
+        const errorMessage =
+          err instanceof Error
+            ? err.message
+            : "Failed to load game assets. Check console for details.";
+        setError(errorMessage);
+        setLoading(false);
       }
     };
 
     loadAssets();
-  }, []);
+  }, [setPosition]); // setPosition is stable from useState, won't cause re-renders
 
   // Resize canvas
   useEffect(() => {

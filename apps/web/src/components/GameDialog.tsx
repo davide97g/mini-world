@@ -18,8 +18,6 @@ export function GameDialog({
   onClose,
 }: GameDialogProps) {
   const [displayedText, setDisplayedText] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  const [isWaiting, setIsWaiting] = useState(false);
   const [hasMoreLines, setHasMoreLines] = useState(false);
   const keys = useKeyboard();
   const [lastKeyTime, setLastKeyTime] = useState(0);
@@ -37,8 +35,6 @@ export function GameDialog({
       isTypingRef.current = false;
       isWaitingRef.current = false;
       hasMoreLinesRef.current = false;
-      setIsTyping(false);
-      setIsWaiting(false);
       setHasMoreLines(false);
       return;
     }
@@ -63,16 +59,12 @@ export function GameDialog({
         isTypingRef.current = false;
         isWaitingRef.current = true;
         hasMoreLinesRef.current = true;
-        setIsTyping(false);
-        setIsWaiting(true);
         setHasMoreLines(true);
       } else {
         // Last line complete
         isTypingRef.current = false;
         isWaitingRef.current = true;
         hasMoreLinesRef.current = false;
-        setIsTyping(false);
-        setIsWaiting(true);
         setHasMoreLines(false);
       }
     }
@@ -85,8 +77,6 @@ export function GameDialog({
       isTypingRef.current = true;
       isWaitingRef.current = false;
       hasMoreLinesRef.current = false;
-      setIsTyping(true);
-      setIsWaiting(false);
       setHasMoreLines(false);
       currentLineIndexRef.current = 0;
       currentCharIndexRef.current = 0;
@@ -117,8 +107,6 @@ export function GameDialog({
       isTypingRef.current = false;
       isWaitingRef.current = false;
       hasMoreLinesRef.current = false;
-      setIsTyping(false);
-      setIsWaiting(false);
       setHasMoreLines(false);
       dialogLinesRef.current = [];
       if (typingTimeoutRef.current) {
@@ -149,16 +137,12 @@ export function GameDialog({
         isTypingRef.current = false;
         isWaitingRef.current = true;
         hasMoreLinesRef.current = true;
-        setIsTyping(false);
-        setIsWaiting(true);
         setHasMoreLines(true);
       } else {
         // Last line
         isTypingRef.current = false;
         isWaitingRef.current = true;
         hasMoreLinesRef.current = false;
-        setIsTyping(false);
-        setIsWaiting(true);
         setHasMoreLines(false);
       }
       return;
@@ -172,8 +156,6 @@ export function GameDialog({
       isTypingRef.current = true;
       isWaitingRef.current = false;
       hasMoreLinesRef.current = false;
-      setIsTyping(true);
-      setIsWaiting(false);
       setHasMoreLines(false);
       typeDialogText();
     } else if (isWaitingRef.current && !hasMoreLinesRef.current) {

@@ -10,8 +10,8 @@ export function useGameLoop(
   callback: (deltaTime: number) => void,
   running = true,
 ) {
-  const requestRef = useRef<number>();
-  const previousTimeRef = useRef<number>();
+  const requestRef = useRef<number>(null);
+  const previousTimeRef = useRef<number | null>(null);
   const [state, setState] = useState<GameLoopState>({
     deltaTime: 0,
     fps: 0,
@@ -22,7 +22,7 @@ export function useGameLoop(
     if (!running) return;
 
     const animate = (time: number) => {
-      if (previousTimeRef.current !== undefined) {
+      if (previousTimeRef.current !== null) {
         // Calculate delta time in seconds
         const deltaTime = (time - previousTimeRef.current) / 1000;
         const fps = deltaTime > 0 ? 1 / deltaTime : 0;

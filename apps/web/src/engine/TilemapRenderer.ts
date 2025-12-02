@@ -13,12 +13,26 @@ export class TilemapRenderer {
   private collisionMap: Set<string> = new Set();
 
   async loadMap(mapPath: string): Promise<void> {
-    const response = await fetch(mapPath);
-    this.map = await response.json();
-    this.tilesetData = this.map?.tilesets ?? [];
+    try {
+      const response = await fetch(mapPath);
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch tilemap: ${response.status} ${response.statusText}`,
+        );
+      }
+      this.map = await response.json();
+      this.tilesetData = this.map?.tilesets ?? [];
 
-    // Extract collision data
-    this.extractCollisionData();
+      // Extract collision data
+      this.extractCollisionData();
+    } catch (err) {
+      if (err instanceof TypeError && err.message.includes("fetch")) {
+        throw new Error(
+          `Network error loading tilemap from ${mapPath}. Is the dev server running?`,
+        );
+      }
+      throw err;
+    }
   }
 
   async loadTilesets(basePath: string): Promise<void> {
@@ -37,8 +51,9 @@ export class TilemapRenderer {
       await new Promise((resolve, reject) => {
         img.onload = resolve;
         img.onerror = () => {
-          console.error(`Failed to load tileset image: ${path}`);
-          reject(new Error(`Failed to load tileset image: ${path}`));
+          const errorMsg = `Failed to load tileset image: ${path}. Check that the file exists in the public directory.`;
+          console.error(errorMsg, { tileset, basePath, imagePath });
+          reject(new Error(errorMsg));
         };
         img.src = path;
       });
