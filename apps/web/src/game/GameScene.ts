@@ -193,6 +193,7 @@ export class GameScene extends Phaser.Scene {
   preload(): void {
     this.load.image("tiles", ASSET_PATHS.tiles);
     this.load.image("solarTiles", ASSET_PATHS.solarTiles);
+    this.load.image("txProps", ASSET_PATHS.txProps);
     this.load.tilemapTiledJSON("map", ASSET_PATHS.map);
     this.load.atlas("atlas", ASSET_PATHS.atlas.image, ASSET_PATHS.atlas.json);
     this.load.audio("mainTheme", ASSET_PATHS.music.mainTheme);
@@ -209,18 +210,22 @@ export class GameScene extends Phaser.Scene {
 
     const tileset = map.addTilesetImage("tuxmon-sample-32px-extruded", "tiles");
     const solarTileset = map.addTilesetImage("solar-tileset", "solarTiles");
+    const txPropsTileset = map.addTilesetImage("TX Props", "txProps");
 
     if (!tileset) {
       console.error("Tileset not found");
       return;
     }
 
-    // Create layers with both tilesets
-    const tilesets = solarTileset ? [tileset, solarTileset] : [tileset];
+    // Create layers with all tilesets
+    const allTilesets = [tileset];
+    if (solarTileset) allTilesets.push(solarTileset);
+    if (txPropsTileset) allTilesets.push(txPropsTileset);
 
-    map.createLayer("Below Player", tilesets, 0, 0);
-    const worldLayer = map.createLayer("World", tilesets, 0, 0);
-    const aboveLayer = map.createLayer("Above Player", tilesets, 0, 0);
+    map.createLayer("Below Player", allTilesets, 0, 0);
+    const worldLayer = map.createLayer("World", allTilesets, 0, 0);
+    const aboveLayer = map.createLayer("Above Player", allTilesets, 0, 0);
+    const effectsLayer = map.createLayer("Effects", allTilesets, 0, 0);
 
     if (worldLayer) {
       worldLayer.setCollisionByProperty({ collides: true });
@@ -228,6 +233,11 @@ export class GameScene extends Phaser.Scene {
 
     if (aboveLayer) {
       aboveLayer.setDepth(10);
+      aboveLayer.setCollisionByProperty({ collides: true });
+    }
+
+    if (effectsLayer) {
+      effectsLayer.setDepth(11);
     }
 
     const spawnPoint = map.findObject(
@@ -284,6 +294,10 @@ export class GameScene extends Phaser.Scene {
 
     if (worldLayer) {
       this.physics.add.collider(this.player.getSprite(), worldLayer);
+    }
+
+    if (aboveLayer) {
+      this.physics.add.collider(this.player.getSprite(), aboveLayer);
     }
 
     const camera = this.cameras.main;
@@ -632,7 +646,12 @@ export class GameScene extends Phaser.Scene {
       const worldX = pointer.worldX;
       const worldY = pointer.worldY;
 
-      const layersToCheck = ["Below Player", "World", "Above Player"];
+      const layersToCheck = [
+        "Below Player",
+        "World",
+        "Above Player",
+        "Effects",
+      ];
       layersToCheck.forEach((layerName) => {
         const layer = this.gameMap?.getLayer(layerName);
         if (!layer) return;
@@ -1540,7 +1559,7 @@ export class GameScene extends Phaser.Scene {
     const firstGID = this.gameMap.tilesets[0]?.firstgid || 1;
 
     // Check all layers for magic tiles
-    const layersToCheck = ["Below Player", "World", "Above Player"];
+    const layersToCheck = ["Below Player", "World", "Above Player", "Effects"];
     layersToCheck.forEach((layerName) => {
       const layer = this.gameMap?.getLayer(layerName);
       if (!layer?.tilemapLayer) return;
