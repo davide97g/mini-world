@@ -9,4 +9,23 @@ export const ASSET_PATHS = {
   music: {
     mainTheme: "/songs/main-theme.mp3",
   },
+  items: {
+    mushroom_blue: "/assets/items/mushroom_blue.png",
+    stone: "/assets/items/stone.png",
+    cactus: "/assets/items/cactus.png",
+    bone: "/assets/items/bone.png",
+    wood: "/assets/items/wood.png",
+    rope: "/assets/items/rope.png",
+    shell: "/assets/items/shell.png",
+    // Generated assets
+    mushroom_brown: "/assets/items/mushroom_brown.png",
+    plank: "/assets/items/plank.png",
+    coin: "/assets/items/coin.png",
+    grass: "/assets/items/grass.png",
+    water: "/assets/items/water.png",
+    stone_dark: "/assets/items/stone_dark.png",
+    pebble: "/assets/items/pebble.png",
+    dust: "/assets/items/dust.png",
+    log: "/assets/items/log.png",
+  },
 } as const;
