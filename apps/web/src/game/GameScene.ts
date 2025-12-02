@@ -142,6 +142,9 @@ export class GameScene extends Phaser.Scene {
   private hotbarSlots: InventorySlot[] = [];
   private tooltipContainer?: Phaser.GameObjects.Container;
 
+  // Collection notifications
+  private collectionNotifications: Phaser.GameObjects.Container[] = [];
+
   constructor() {
     super({ key: "GameScene" });
   }
@@ -1407,8 +1410,8 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private checkTileProximity(): boolean {
-    if (!this.player || !this.gameMap) return false;
+  private checkTileProximity(): string | null {
+    if (!this.player || !this.gameMap) return null;
 
     const playerPos = this.player.getPosition();
     const tileWidth = this.gameMap.tileWidth || 32;
@@ -1432,31 +1435,48 @@ export class GameScene extends Phaser.Scene {
         );
 
         if (distance <= COLLECTION_PROXIMITY_DISTANCE) {
-          // Check if this tile exists and is collectible (has a tile in the World layer)
+          // Check if this tile exists and is collectible
           const worldLayer = this.gameMap.getLayer("World");
           if (worldLayer?.tilemapLayer) {
             const tile = worldLayer.tilemapLayer.getTileAt(checkX, checkY);
             if (tile && tile.index !== null && tile.index !== -1) {
-              return true;
+              // Check for collectable property
+              // In Phaser, tile properties from Tiled (including tileset-level properties)
+              // are available on the tile object via tile.properties
+              if (tile.properties) {
+                // Handle properties as array (from Tiled JSON)
+                if (Array.isArray(tile.properties)) {
+                  const collectableProperty = tile.properties.find(
+                    (prop: { name: string; value: unknown }) =>
+                      prop.name === "collectable",
+                  );
+                  if (
+                    collectableProperty &&
+                    typeof collectableProperty.value === "string"
+                  ) {
+                    return collectableProperty.value;
+                  }
+                }
+                // Handle properties as object (Phaser might convert it)
+                else if (
+                  typeof tile.properties === "object" &&
+                  "collectable" in tile.properties
+                ) {
+                  const collectableValue = (
+                    tile.properties as { collectable: unknown }
+                  ).collectable;
+                  if (typeof collectableValue === "string") {
+                    return collectableValue;
+                  }
+                }
+              }
             }
           }
         }
       }
     }
 
-    return false;
-  }
-
-  private collectRandomItems(): void {
-    // Add 1-3 random items to inventory
-    const itemIds = Array.from(this.inventoryItems.keys());
-    const numItems = Phaser.Math.Between(1, 3);
-
-    for (let i = 0; i < numItems; i += 1) {
-      const randomItemId = itemIds[Phaser.Math.Between(0, itemIds.length - 1)];
-      const quantity = Phaser.Math.Between(1, 5);
-      this.addItemToInventory(randomItemId, quantity);
-    }
+    return null;
   }
 
   private setupCollectionControls(): void {
@@ -1474,8 +1494,16 @@ export class GameScene extends Phaser.Scene {
         return;
       }
 
-      if (this.checkTileProximity()) {
-        this.collectRandomItems();
+      const collectableItem = this.checkTileProximity();
+      if (collectableItem) {
+        // Check if the item type exists in inventory
+        if (this.inventoryItems.has(collectableItem)) {
+          this.addItemToInventory(collectableItem, 1);
+          this.showCollectionNotification(collectableItem, 1);
+          debugLog(`Collected 1x ${collectableItem}`);
+        } else {
+          debugWarn(`Unknown collectable item type: ${collectableItem}`);
+        }
       }
     });
   }
@@ -1515,5 +1543,138 @@ export class GameScene extends Phaser.Scene {
 
     this.isInventoryOpen = !this.isInventoryOpen;
     this.inventoryContainer.setVisible(this.isInventoryOpen);
+  }
+
+  private showCollectionNotification(itemId: string, quantity: number): void {
+    const item = this.inventoryItems.get(itemId);
+    if (!item) return;
+
+    const padding = 16;
+    const notificationWidth = 200;
+    const notificationHeight = 60;
+    const itemImageSize = 40;
+    const spacing = 8; // Space between notifications
+
+    // Calculate Y position based on existing notifications
+    const startY = padding + notificationHeight / 2;
+    const notificationY =
+      startY +
+      this.collectionNotifications.length * (notificationHeight + spacing);
+
+    // Create notification container
+    const notificationContainer = this.add.container(
+      padding + notificationWidth / 2,
+      notificationY,
+    );
+    notificationContainer.setScrollFactor(0);
+    notificationContainer.setDepth(200);
+
+    // Shadow background (darker, offset)
+    const shadowOffset = 3;
+    const shadowBackground = this.add.rectangle(
+      shadowOffset,
+      shadowOffset,
+      notificationWidth,
+      notificationHeight,
+      0x000000,
+      0.6,
+    );
+    shadowBackground.setOrigin(0.5);
+    notificationContainer.add(shadowBackground);
+
+    // Main background
+    const background = this.add.rectangle(
+      0,
+      0,
+      notificationWidth,
+      notificationHeight,
+      0x18181b,
+      0.95,
+    );
+    background.setStrokeStyle(2, 0xffffff, 0.5);
+    background.setOrigin(0.5);
+    notificationContainer.add(background);
+
+    // Item image
+    const itemImageX = -notificationWidth / 2 + itemImageSize / 2 + 12;
+    if (this.textures.exists(itemId)) {
+      const itemImage = this.add.image(itemImageX, 0, itemId);
+      itemImage.setDisplaySize(itemImageSize, itemImageSize);
+      notificationContainer.add(itemImage);
+    } else {
+      const itemImage = this.add.rectangle(
+        itemImageX,
+        0,
+        itemImageSize,
+        itemImageSize,
+        item.color,
+        1,
+      );
+      itemImage.setStrokeStyle(2, 0xffffff, 0.3);
+      notificationContainer.add(itemImage);
+    }
+
+    // Item name and quantity text
+    const textX = itemImageX + itemImageSize / 2 + 12;
+    const itemText = this.add.text(textX, -8, item.name, {
+      fontFamily: "monospace",
+      fontSize: "16px",
+      color: "#ffffff",
+      stroke: "#000000",
+      strokeThickness: 2,
+    });
+    itemText.setOrigin(0, 0.5);
+    notificationContainer.add(itemText);
+
+    const quantityText = this.add.text(textX, 8, `x${quantity}`, {
+      fontFamily: "monospace",
+      fontSize: "14px",
+      color: "#cccccc",
+      stroke: "#000000",
+      strokeThickness: 2,
+    });
+    quantityText.setOrigin(0, 0.5);
+    notificationContainer.add(quantityText);
+
+    // Add to notifications array
+    this.collectionNotifications.push(notificationContainer);
+
+    // Remove notification after 1 second
+    this.time.delayedCall(1000, () => {
+      this.removeCollectionNotification(notificationContainer);
+    });
+  }
+
+  private removeCollectionNotification(
+    notification: Phaser.GameObjects.Container,
+  ): void {
+    const index = this.collectionNotifications.indexOf(notification);
+    if (index === -1) return;
+
+    // Remove from array
+    this.collectionNotifications.splice(index, 1);
+
+    // Destroy the notification
+    notification.destroy();
+
+    // Update positions of remaining notifications
+    this.updateNotificationPositions();
+  }
+
+  private updateNotificationPositions(): void {
+    const padding = 16;
+    const notificationHeight = 60;
+    const spacing = 8;
+    const startY = padding + notificationHeight / 2;
+
+    this.collectionNotifications.forEach((notification, index) => {
+      const newY = startY + index * (notificationHeight + spacing);
+      this.tweens.add({
+        targets: notification,
+        y: newY,
+        duration: 200,
+        ease: "Power2",
+      });
+    });
   }
 }
