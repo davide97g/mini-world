@@ -120,6 +120,7 @@ export class GameScene extends Phaser.Scene {
   private player?: Player;
   private gameMap: Phaser.Tilemaps.Tilemap | null = null;
   private worldLayer?: Phaser.Tilemaps.TilemapLayer;
+  private aboveLayer?: Phaser.Tilemaps.TilemapLayer;
 
   // Systems
   private menuSystem?: MenuSystem;
@@ -192,6 +193,47 @@ export class GameScene extends Phaser.Scene {
     { x: number; y: number; gid: number; collides: boolean }
   > = new Map();
 
+  // Tile grouping system for multi-tile objects using Tiled "group" property
+  // Maps a tile key (x,y) to a group of related tiles with the same group value
+  // Includes distance from the starting tile for flood-fill algorithm
+  private tileGroups: Map<
+    string,
+    Array<{
+      layer: "world" | "above";
+      x: number;
+      y: number;
+      group: string;
+      distance: number;
+    }>
+  > = new Map();
+
+  // Helper to get a property value from a tile
+  private getTileProperty(
+    tile: Phaser.Tilemaps.Tile,
+    propertyName: string,
+  ): string | null {
+    if (!tile.properties) return null;
+
+    if (Array.isArray(tile.properties)) {
+      const property = tile.properties.find(
+        (prop: { name: string; value: unknown }) => prop.name === propertyName,
+      );
+      if (property && typeof property.value === "string") {
+        return property.value;
+      }
+    } else if (
+      typeof tile.properties === "object" &&
+      propertyName in tile.properties
+    ) {
+      const value = (tile.properties as Record<string, unknown>)[propertyName];
+      if (typeof value === "string") {
+        return value;
+      }
+    }
+
+    return null;
+  }
+
   constructor() {
     super({ key: "GameScene" });
   }
@@ -242,7 +284,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   preload(): void {
-    this.load.image("tiles", ASSET_PATHS.tiles);
+    // Load tilesets
+    this.load.image("tiles-grass", ASSET_PATHS.tiles.grass);
+    this.load.image("tiles-plant", ASSET_PATHS.tiles.plantWithShadow);
+    this.load.image("tiles-props", ASSET_PATHS.tiles.propsWithShadow);
+    this.load.image("tiles-wall", ASSET_PATHS.tiles.wall);
     this.load.tilemapTiledJSON("map", ASSET_PATHS.map);
     this.load.atlas("atlas", ASSET_PATHS.atlas.image, ASSET_PATHS.atlas.json);
     this.load.audio("mainTheme", ASSET_PATHS.music.mainTheme);
@@ -260,19 +306,35 @@ export class GameScene extends Phaser.Scene {
     const map = this.make.tilemap({ key: "map" });
     this.gameMap = map;
 
-    const tileset = map.addTilesetImage("base-terrain", "tiles");
+    // Add all tilesets to the map
+    const grassTileset = map.addTilesetImage("TX Tileset Grass", "tiles-grass");
+    const plantTileset = map.addTilesetImage(
+      "TX Plant with Shadow",
+      "tiles-plant",
+    );
+    const propsTileset = map.addTilesetImage(
+      "TX Props with Shadow",
+      "tiles-props",
+    );
+    const wallTileset = map.addTilesetImage("TX Tileset Wall", "tiles-wall");
 
-    if (!tileset) {
-      console.error("Tileset not found");
+    if (!grassTileset || !plantTileset || !propsTileset || !wallTileset) {
+      console.error("One or more tilesets not found");
       return;
     }
-    // Create layers with both tilesets
-    const tilesets = [tileset];
+    // Create layers with all tilesets
+    const tilesets = [
+      grassTileset,
+      plantTileset,
+      propsTileset,
+      wallTileset,
+    ].filter((t) => t !== null) as Phaser.Tilemaps.Tileset[];
 
     map.createLayer("Below Player", tilesets, 0, 0);
     const worldLayer = map.createLayer("World", tilesets, 0, 0);
     this.worldLayer = worldLayer || undefined;
     const aboveLayer = map.createLayer("Above Player", tilesets, 0, 0);
+    this.aboveLayer = aboveLayer || undefined;
 
     if (worldLayer) {
       worldLayer.setCollisionByProperty({ collides: true });
@@ -281,6 +343,9 @@ export class GameScene extends Phaser.Scene {
     if (aboveLayer) {
       aboveLayer.setDepth(10);
     }
+
+    // Initialize tile groups for existing trees in the map
+    this.initializeTileGroups();
 
     const spawnPoint = map.findObject(
       "Objects",
@@ -483,15 +548,32 @@ export class GameScene extends Phaser.Scene {
     });
 
     // Collect hidden tiles (tiles that were collected and hidden)
-    const hiddenTiles: Array<{ x: number; y: number }> = [];
+    // Include both world and above layer tiles
+    const hiddenTiles: Array<{
+      x: number;
+      y: number;
+      layer: "world" | "above";
+    }> = [];
 
     if (this.worldLayer) {
-      // Scan for hidden tiles (alpha = 0)
+      // Scan world layer for hidden tiles (alpha = 0)
       for (let y = 0; y < this.gameMap.height; y += 1) {
         for (let x = 0; x < this.gameMap.width; x += 1) {
           const tile = this.worldLayer.getTileAt(x, y);
           if (tile && tile.alpha === 0) {
-            hiddenTiles.push({ x, y });
+            hiddenTiles.push({ x, y, layer: "world" });
+          }
+        }
+      }
+    }
+
+    if (this.aboveLayer) {
+      // Scan above layer for hidden tiles (alpha = 0)
+      for (let y = 0; y < this.gameMap.height; y += 1) {
+        for (let x = 0; x < this.gameMap.width; x += 1) {
+          const tile = this.aboveLayer.getTileAt(x, y);
+          if (tile && tile.alpha === 0) {
+            hiddenTiles.push({ x, y, layer: "above" });
           }
         }
       }
@@ -606,14 +688,29 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Restore hidden tiles (tiles that were collected)
-    if (saveData.hiddenTiles && this.worldLayer) {
+    // Handle both world and above layer tiles
+    if (saveData.hiddenTiles) {
       saveData.hiddenTiles.forEach((tileData) => {
-        const tile = this.worldLayer?.getTileAt(tileData.x, tileData.y);
-        if (tile) {
-          tile.setAlpha(0);
-          tile.setCollision(false);
+        // Support both old format (without layer) and new format (with layer)
+        const layer =
+          "layer" in tileData && tileData.layer === "above"
+            ? this.aboveLayer
+            : this.worldLayer;
+
+        if (layer) {
+          const tile = layer.getTileAt(tileData.x, tileData.y);
+          if (tile) {
+            tile.setAlpha(0);
+            if (layer === this.worldLayer) {
+              tile.setCollision(false);
+            }
+          }
         }
       });
+
+      // Rebuild tile groups for trees that were hidden
+      // This ensures groups are properly tracked even after loading
+      this.initializeTileGroups();
     }
 
     // Load music settings
@@ -2163,6 +2260,20 @@ export class GameScene extends Phaser.Scene {
         gid: tileGID,
         collides: true,
       });
+
+      // Create a tile group for this tree using group property
+      // Check if the tile has a group property
+      const tileGroup = this.getTileProperty(newTile, "group");
+      if (tileGroup && this.aboveLayer) {
+        // Find all tiles with the same group value nearby
+        const group = this.findTilesByGroup(tileGroup, tileX, tileY);
+        if (group && group.length > 0) {
+          this.tileGroups.set(tileKey, group);
+          debugLog(
+            `Created tile group for spawned object with group "${tileGroup}" at (${tileX}, ${tileY}) with ${group.length} tiles`,
+          );
+        }
+      }
     }
 
     // Remove wood from inventory
@@ -2180,18 +2291,422 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private hideTile(tileX: number, tileY: number): void {
-    if (!this.worldLayer) return;
+  /**
+   * Initialize tile groups for multi-tile objects using Tiled "group" property
+   * Scans all layers to find tiles with a "group" property and groups nearby tiles with the same group value
+   */
+  private initializeTileGroups(): void {
+    if (!this.gameMap || !this.worldLayer || !this.aboveLayer) return;
 
-    // Get the tile and hide it by setting alpha to 0
-    const tile = this.worldLayer.getTileAt(tileX, tileY);
-    if (tile) {
-      tile.setAlpha(0);
-      // Also remove collision if it exists
-      tile.setCollision(false);
-      // Play destroy sound when item is removed from screen
-      this.destroySound?.play();
+    // Track which tiles have already been processed to avoid duplicates
+    const processedTiles = new Set<string>();
+
+    // Scan both layers for tiles with a "group" property
+    const layersToScan: Array<{
+      layer: Phaser.Tilemaps.TilemapLayer;
+      layerName: "world" | "above";
+    }> = [
+      { layer: this.worldLayer, layerName: "world" },
+      { layer: this.aboveLayer, layerName: "above" },
+    ];
+
+    for (const { layer, layerName } of layersToScan) {
+      for (let y = 0; y < this.gameMap.height; y += 1) {
+        for (let x = 0; x < this.gameMap.width; x += 1) {
+          const tileKey = `${x},${y}`;
+          const fullKey = `${layerName}:${tileKey}`;
+
+          // Skip if already processed
+          if (processedTiles.has(fullKey)) {
+            continue;
+          }
+
+          const tile = layer.getTileAt(x, y);
+          if (!tile || tile.index === null || tile.index === -1) {
+            continue;
+          }
+
+          // Get the "group" property from this tile
+          const tileGroup = this.getTileProperty(tile, "group");
+          if (!tileGroup) {
+            continue; // Skip tiles without a group property
+          }
+
+          // Find all nearby tiles with the same group value (within 1 tile radius)
+          const group = this.findTilesByGroup(tileGroup, x, y);
+          if (group && group.length > 0) {
+            // Mark all tiles in this group as processed
+            group.forEach((tileInfo) => {
+              const processedKey = `${tileInfo.layer}:${tileInfo.x},${tileInfo.y}`;
+              processedTiles.add(processedKey);
+            });
+
+            // Store the group using the first tile's position as the key
+            this.tileGroups.set(tileKey, group);
+
+            // Also store the group for all other tiles in the group for quick lookup
+            group.forEach((tileInfo) => {
+              const infoKey = `${tileInfo.x},${tileInfo.y}`;
+              if (infoKey !== tileKey) {
+                this.tileGroups.set(infoKey, group);
+              }
+            });
+
+            const maxDistance = Math.max(...group.map((t) => t.distance));
+            debugLog(
+              `Created tile group for group "${tileGroup}" at (${x}, ${y}) with ${group.length} tiles (max distance: ${maxDistance})`,
+            );
+          }
+        }
+      }
     }
+  }
+
+  /**
+   * Get the tile group for a given tile position using the "group" property
+   * Returns all tiles that belong to the same group
+   */
+  private getTileGroup(
+    tileX: number,
+    tileY: number,
+  ): Array<{
+    layer: "world" | "above";
+    x: number;
+    y: number;
+    group: string;
+    distance: number;
+  }> | null {
+    debugLog(`\n[getTileGroup] Looking for group at (${tileX}, ${tileY})`);
+
+    // First, try to get the group directly
+    const groupKey = `${tileX},${tileY}`;
+    let group = this.tileGroups.get(groupKey);
+
+    if (group) {
+      debugLog(`[getTileGroup] Found cached group with ${group.length} tiles`);
+      return group;
+    }
+
+    debugLog(`[getTileGroup] No cached group found, searching...`);
+
+    // If not found, check if this tile has a class and find its group
+    // Check both layers for the tile
+    const layersToCheck: Array<{
+      layer: Phaser.Tilemaps.TilemapLayer | undefined;
+      layerName: "world" | "above";
+    }> = [
+      { layer: this.worldLayer, layerName: "world" },
+      { layer: this.aboveLayer, layerName: "above" },
+    ];
+
+    for (const { layer, layerName } of layersToCheck) {
+      if (!layer) {
+        debugLog(`[getTileGroup] ${layerName} layer not available`);
+        continue;
+      }
+
+      const tile = layer.getTileAt(tileX, tileY);
+      if (!tile || tile.index === null || tile.index === -1) {
+        debugLog(
+          `[getTileGroup] No tile at (${tileX}, ${tileY}) on ${layerName} layer`,
+        );
+        continue;
+      }
+
+      debugLog(
+        `[getTileGroup] Found tile at (${tileX}, ${tileY}) on ${layerName} layer, index: ${tile.index}`,
+      );
+
+      const tileGroup = this.getTileProperty(tile, "group");
+      debugLog(`[getTileGroup] Tile group property: "${tileGroup || "none"}"`);
+
+      if (tileGroup) {
+        // Find all tiles with the same group value in nearby positions
+        debugLog(
+          `[getTileGroup] Searching for tiles with group "${tileGroup}" near (${tileX}, ${tileY})`,
+        );
+        group = this.findTilesByGroup(tileGroup, tileX, tileY) || [];
+        if (group && group.length > 0) {
+          debugLog(
+            `[getTileGroup] Found ${group.length} tiles with group "${tileGroup}"`,
+          );
+          // Cache this group for future lookups
+          this.tileGroups.set(groupKey, group);
+          break;
+        } else {
+          debugLog(`[getTileGroup] No tiles found with group "${tileGroup}"`);
+        }
+      }
+    }
+
+    if (!group) {
+      debugLog(
+        `[getTileGroup] No group found for position (${tileX}, ${tileY})`,
+      );
+    }
+
+    return group || null;
+  }
+
+  /**
+   * Find all tiles with the same group value using flood-fill algorithm
+   * Recursively checks adjacent tiles (up, down, left, right) with the same group
+   * Uses iterative queue-based approach to avoid stack overflow
+   */
+  private findTilesByGroup(
+    targetGroup: string,
+    centerX: number,
+    centerY: number,
+  ): Array<{
+    layer: "world" | "above";
+    x: number;
+    y: number;
+    group: string;
+    distance: number;
+  }> | null {
+    if (!this.gameMap || !this.worldLayer || !this.aboveLayer) {
+      debugLog(`[findTilesByGroup] Missing layers or map`);
+      return null;
+    }
+
+    debugLog(
+      `[findTilesByGroup] Starting flood-fill search for group "${targetGroup}" from (${centerX}, ${centerY})`,
+    );
+
+    const group: Array<{
+      layer: "world" | "above";
+      x: number;
+      y: number;
+      group: string;
+      distance: number;
+    }> = [];
+
+    // Track visited tiles to avoid processing the same tile twice
+    const visited = new Set<string>();
+
+    // Queue for iterative flood-fill (avoids stack overflow)
+    // Each item: { layer, layerName, x, y, distance }
+    interface QueueItem {
+      layer: Phaser.Tilemaps.TilemapLayer;
+      layerName: "world" | "above";
+      x: number;
+      y: number;
+      distance: number;
+    }
+
+    const queue: QueueItem[] = [];
+
+    const layersToCheck: Array<{
+      layer: Phaser.Tilemaps.TilemapLayer;
+      layerName: "world" | "above";
+    }> = [
+      { layer: this.worldLayer, layerName: "world" },
+      { layer: this.aboveLayer, layerName: "above" },
+    ];
+
+    // Add initial tiles to queue (check both layers at center position)
+    for (const { layer, layerName } of layersToCheck) {
+      const tile = layer.getTileAt(centerX, centerY);
+      if (tile && tile.index !== null && tile.index !== -1) {
+        const tileGroup = this.getTileProperty(tile, "group");
+        if (tileGroup === targetGroup) {
+          const key = `${layerName}:${centerX},${centerY}`;
+          if (!visited.has(key)) {
+            visited.add(key);
+            queue.push({
+              layer,
+              layerName,
+              x: centerX,
+              y: centerY,
+              distance: 0,
+            });
+            group.push({
+              layer: layerName,
+              x: centerX,
+              y: centerY,
+              group: targetGroup,
+              distance: 0,
+            });
+            debugLog(
+              `[findTilesByGroup] Added initial tile at (${centerX}, ${centerY}) on ${layerName} layer`,
+            );
+          }
+        }
+      }
+    }
+
+    // Process queue iteratively (flood-fill)
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (!current) continue;
+
+      const { x, y, distance } = current;
+
+      // Check adjacent tiles (up, down, left, right - not diagonal)
+      const directions = [
+        { dx: 0, dy: -1 }, // up
+        { dx: 0, dy: 1 }, // down
+        { dx: -1, dy: 0 }, // left
+        { dx: 1, dy: 0 }, // right
+      ];
+
+      for (const { dx, dy } of directions) {
+        const checkX = x + dx;
+        const checkY = y + dy;
+        const newDistance = distance + 1;
+
+        // Skip out of bounds
+        if (
+          checkX < 0 ||
+          checkX >= this.gameMap.width ||
+          checkY < 0 ||
+          checkY >= this.gameMap.height
+        ) {
+          continue;
+        }
+
+        // Check both layers at this position
+        for (const {
+          layer: checkLayer,
+          layerName: checkLayerName,
+        } of layersToCheck) {
+          const key = `${checkLayerName}:${checkX},${checkY}`;
+
+          // Skip if already visited
+          if (visited.has(key)) {
+            continue;
+          }
+
+          const tile = checkLayer.getTileAt(checkX, checkY);
+          if (!tile || tile.index === null || tile.index === -1) {
+            continue;
+          }
+
+          const tileGroup = this.getTileProperty(tile, "group");
+          debugLog(
+            `[findTilesByGroup] Checking tile at (${checkX}, ${checkY}) on ${checkLayerName} layer - group: "${
+              tileGroup || "none"
+            }", distance: ${newDistance}`,
+          );
+
+          if (tileGroup === targetGroup) {
+            visited.add(key);
+            queue.push({
+              layer: checkLayer,
+              layerName: checkLayerName,
+              x: checkX,
+              y: checkY,
+              distance: newDistance,
+            });
+            group.push({
+              layer: checkLayerName,
+              x: checkX,
+              y: checkY,
+              group: targetGroup,
+              distance: newDistance,
+            });
+            debugLog(
+              `[findTilesByGroup] ✓ Added adjacent tile at (${checkX}, ${checkY}) on ${checkLayerName} layer (distance: ${newDistance})`,
+            );
+          }
+        }
+      }
+    }
+
+    debugLog(
+      `[findTilesByGroup] Found ${group.length} connected tiles with group "${targetGroup}"`,
+    );
+    return group.length > 0 ? group : null;
+  }
+
+  /**
+   * Hide a tile and all tiles in its group (e.g., tree base + tree top)
+   */
+  private hideTile(tileX: number, tileY: number): void {
+    if (!this.worldLayer || !this.aboveLayer) return;
+
+    debugLog(`\n=== hideTile called for position (${tileX}, ${tileY}) ===`);
+
+    // Get the tile group for this position
+    const group = this.getTileGroup(tileX, tileY);
+
+    if (group) {
+      debugLog(`Found tile group with ${group.length} tiles:`);
+      const maxDistance = Math.max(...group.map((t) => t.distance));
+      group.forEach((tileInfo, index) => {
+        debugLog(
+          `  [${index}] Layer: ${tileInfo.layer}, Position: (${tileInfo.x}, ${tileInfo.y}), Group: "${tileInfo.group}", Distance: ${tileInfo.distance}`,
+        );
+      });
+      debugLog(`  Max distance from center: ${maxDistance}`);
+
+      // Hide all tiles in the group
+      let hiddenCount = 0;
+      group.forEach((tileInfo) => {
+        const layer =
+          tileInfo.layer === "world" ? this.worldLayer : this.aboveLayer;
+        if (!layer) {
+          debugLog(
+            `  WARNING: Layer ${tileInfo.layer} not found for tile at (${tileInfo.x}, ${tileInfo.y})`,
+          );
+          return;
+        }
+
+        const tile = layer.getTileAt(tileInfo.x, tileInfo.y);
+        if (tile) {
+          const beforeAlpha = tile.alpha;
+          tile.setAlpha(0);
+          // Remove collision for world layer tiles
+          if (tileInfo.layer === "world") {
+            tile.setCollision(false);
+          }
+          hiddenCount += 1;
+          debugLog(
+            `  ✓ Hidden tile at (${tileInfo.x}, ${tileInfo.y}) on ${tileInfo.layer} layer (alpha: ${beforeAlpha} -> 0)`,
+          );
+        } else {
+          debugLog(
+            `  ✗ Tile not found at (${tileInfo.x}, ${tileInfo.y}) on ${tileInfo.layer} layer`,
+          );
+        }
+      });
+
+      // Remove the group from tracking
+      const groupKey = `${tileX},${tileY}`;
+      this.tileGroups.delete(groupKey);
+
+      const groupValue = group[0]?.group || "unknown";
+      debugLog(
+        `Destroyed tile group (group: "${groupValue}") at (${tileX}, ${tileY}) - ${hiddenCount}/${group.length} tiles hidden`,
+      );
+    } else {
+      debugLog(`No tile group found for position (${tileX}, ${tileY})`);
+      // Check if tile has a group property
+      const worldTile = this.worldLayer.getTileAt(tileX, tileY);
+      const aboveTile = this.aboveLayer.getTileAt(tileX, tileY);
+
+      if (worldTile) {
+        const worldGroup = this.getTileProperty(worldTile, "group");
+        debugLog(`  World layer tile group: ${worldGroup || "none"}`);
+      }
+      if (aboveTile) {
+        const aboveGroup = this.getTileProperty(aboveTile, "group");
+        debugLog(`  Above layer tile group: ${aboveGroup || "none"}`);
+      }
+
+      // Fallback: hide single tile if no group found
+      const tile = this.worldLayer.getTileAt(tileX, tileY);
+      if (tile) {
+        tile.setAlpha(0);
+        tile.setCollision(false);
+        debugLog(`  Fallback: Hidden single tile at (${tileX}, ${tileY})`);
+      }
+    }
+
+    debugLog(`=== hideTile finished ===\n`);
+
+    // Play destroy sound when item is removed from screen
+    this.destroySound?.play();
   }
 
   private updateProgressBar(

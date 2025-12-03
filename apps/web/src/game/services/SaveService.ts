@@ -33,6 +33,7 @@ export interface GameSaveData {
   hiddenTiles: Array<{
     x: number;
     y: number;
+    layer?: "world" | "above"; // Optional for backward compatibility
   }>; // Tiles that were collected and hidden
 
   // Game settings (per-world)

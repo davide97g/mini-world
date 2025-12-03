@@ -1,5 +1,10 @@
 export const ASSET_PATHS = {
-  tiles: "/tilesets/base-terrain.png",
+  tiles: {
+    grass: "/tilesets/ancient-ruins/TX Tileset Grass.png",
+    plantWithShadow: "/tilesets/ancient-ruins/TX Plant with Shadow.png",
+    propsWithShadow: "/tilesets/ancient-ruins/TX Props with Shadow.png",
+    wall: "/tilesets/ancient-ruins/TX Tileset Wall.png",
+  },
   map: "/tilemaps/main-map.json",
   atlas: {
     image: "/atlas/atlas.png",
