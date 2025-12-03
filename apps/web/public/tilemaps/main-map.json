@@ -9027,20 +9027,6 @@
           ]
         }
       ]
-    },
-    {
-      "columns": 4,
-      "firstgid": 721,
-      "image": "..\/..\/..\/..\/..\/..\/base-terrain.png",
-      "imageheight": 128,
-      "imagewidth": 128,
-      "margin": 0,
-      "name": "base-terrain",
-      "spacing": 0,
-      "tilecount": 16,
-      "tileheight": 32,
-      "tilewidth": 32,
-      "transparentcolor": "#ff00ff"
     }
   ],
   "tilewidth": 32,
