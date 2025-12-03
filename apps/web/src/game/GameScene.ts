@@ -7,11 +7,6 @@
 import Phaser from "phaser";
 import { ASSET_PATHS } from "./config/AssetPaths";
 import { Player } from "./entities/Player";
-import { RemotePlayer } from "./entities/RemotePlayer";
-import {
-  MultiplayerService,
-  type PlayerData,
-} from "./services/MultiplayerService";
 import {
   type GameSaveData,
   getCurrentWorldId,
@@ -132,10 +127,6 @@ export class GameScene extends Phaser.Scene {
   protected weatherSystem?: WeatherSystem;
   private chatSystem?: ChatSystem;
 
-  // Multiplayer
-  private multiplayerService?: MultiplayerService;
-  private remotePlayers: Map<string, RemotePlayer> = new Map();
-
   // Music
   private mainThemeMusic?: Phaser.Sound.WebAudioSound;
   private isMusicPlaying = false;
@@ -227,17 +218,6 @@ export class GameScene extends Phaser.Scene {
       window.removeEventListener("mobileActionB", this.handleMobileActionB);
       window.removeEventListener("mobileStart", this.handleMobileStart);
     }
-
-    // Clean up multiplayer connection
-    if (this.multiplayerService) {
-      this.multiplayerService.disconnect();
-    }
-
-    // Clean up remote players
-    this.remotePlayers.forEach((player) => {
-      player.destroy();
-    });
-    this.remotePlayers.clear();
 
     // Clean up progress bars
     this.tileProgressBars.forEach((progressBar) => {
@@ -392,9 +372,6 @@ export class GameScene extends Phaser.Scene {
         y: oldStatue.y ?? 0,
       });
     }
-
-    // Initialize multiplayer
-    this.initMultiplayer();
 
     this.setupDebugControls();
     this.setupInputHandling();
@@ -784,143 +761,6 @@ export class GameScene extends Phaser.Scene {
 
     // Setup keyboard controls for menu/dialog
     this.setupMenuDialogControls();
-  }
-
-  private initMultiplayer(): void {
-    // Initialize multiplayer service
-    const serverUrl =
-      import.meta.env.VITE_SERVER_URL || "http://localhost:3001";
-    debugLog("=== Multiplayer Configuration ===");
-    debugLog(
-      "VITE_SERVER_URL:",
-      import.meta.env.VITE_SERVER_URL || "not set (using default)",
-    );
-    debugLog("Using server URL:", serverUrl);
-    debugLog("================================");
-    this.multiplayerService = new MultiplayerService(serverUrl);
-
-    // Set up callbacks
-    this.multiplayerService.onAllPlayers((players: PlayerData[]) => {
-      // Add all existing players (excluding our own)
-      const socketId = this.multiplayerService?.getSocketId();
-      players.forEach((playerData) => {
-        // Don't create remote player for ourselves
-        if (playerData.id === socketId) {
-          return;
-        }
-        // Only add if it doesn't already exist
-        if (!this.remotePlayers.has(playerData.id)) {
-          debugLog("Adding remote player:", playerData.id);
-          this.addRemotePlayer(playerData);
-        }
-      });
-    });
-
-    this.multiplayerService.onPlayerJoin((playerData: PlayerData) => {
-      // Don't create remote player for ourselves
-      const socketId = this.multiplayerService?.getSocketId();
-      if (playerData.id === socketId) {
-        return;
-      }
-      // Only add if it doesn't already exist
-      if (!this.remotePlayers.has(playerData.id)) {
-        debugLog("Adding remote player on join:", playerData.id);
-        this.addRemotePlayer(playerData);
-      } else {
-        debugWarn("Attempted to add duplicate remote player:", playerData.id);
-      }
-    });
-
-    this.multiplayerService.onPlayerMove((playerData: PlayerData) => {
-      // Don't process moves for our own player
-      const socketId = this.multiplayerService?.getSocketId();
-      if (playerData.id === socketId) {
-        return;
-      }
-
-      let remotePlayer = this.remotePlayers.get(playerData.id);
-      // If player doesn't exist yet, create them (might have joined before we connected)
-      if (!remotePlayer) {
-        debugLog("Creating remote player from move event:", playerData.id);
-        this.addRemotePlayer(playerData);
-        remotePlayer = this.remotePlayers.get(playerData.id);
-      }
-
-      if (remotePlayer) {
-        remotePlayer.updatePosition(
-          playerData.x,
-          playerData.y,
-          playerData.direction,
-        );
-      }
-    });
-
-    this.multiplayerService.onPlayerLeave((playerId: string) => {
-      this.removeRemotePlayer(playerId);
-    });
-
-    // Connect player position updates to multiplayer service
-    if (this.player) {
-      this.player.setOnPositionUpdate((x, y, direction) => {
-        this.multiplayerService?.sendMovement(x, y, direction);
-      });
-    }
-
-    // Helper function to register player
-    const registerPlayer = () => {
-      if (this.player && this.multiplayerService?.isConnectedToServer()) {
-        const pos = this.player.getPosition();
-        debugLog("Registering player at position:", pos.x, pos.y);
-        this.multiplayerService.registerNewPlayer(pos.x, pos.y);
-      }
-    };
-
-    // Connect to server
-    this.multiplayerService.connect();
-
-    // Register new player after connection is established
-    // Wait a bit for connection to be fully established
-    this.time.delayedCall(500, registerPlayer);
-  }
-
-  private addRemotePlayer(playerData: PlayerData): void {
-    // Double-check to prevent duplicates
-    if (this.remotePlayers.has(playerData.id)) {
-      debugWarn("Attempted to add duplicate remote player:", playerData.id);
-      return; // Player already exists
-    }
-
-    debugLog(
-      "Creating remote player:",
-      playerData.id,
-      "at",
-      playerData.x,
-      playerData.y,
-    );
-    const remotePlayer = new RemotePlayer(
-      this,
-      playerData.id,
-      playerData.x,
-      playerData.y,
-      playerData.direction,
-    );
-
-    // Add collision with world layer
-    // const worldLayer = this.gameMap?.getLayer("World");
-    // if (worldLayer) {
-    //   this.physics.add.collider(remotePlayer.getSprite(), worldLayer);
-    // }
-
-    this.remotePlayers.set(playerData.id, remotePlayer);
-    debugLog("Total remote players:", this.remotePlayers.size);
-  }
-
-  private removeRemotePlayer(playerId: string): void {
-    const remotePlayer = this.remotePlayers.get(playerId);
-    if (remotePlayer) {
-      remotePlayer.destroy();
-      this.remotePlayers.delete(playerId);
-    }
   }
 
   private setupMenuDialogControls(): void {

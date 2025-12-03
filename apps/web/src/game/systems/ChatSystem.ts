@@ -5,7 +5,6 @@ import {
   CHAT_WIDTH,
   STATUE_PROXIMITY_DISTANCE,
 } from "../config/GameConstants";
-import { ChatService } from "../services/ChatService";
 
 interface ChatMessage {
   container: Phaser.GameObjects.Container;
@@ -26,16 +25,11 @@ export class ChatSystem {
   private chatMessageContainer: Phaser.GameObjects.Container | null = null;
   private playerPosition?: { x: number; y: number };
   private canOpenChatCheck?: () => boolean;
-  private chatService: ChatService;
   private isLoadingResponse = false;
   private loadingIndicator: Phaser.GameObjects.Text | null = null;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
-    const serverUrl =
-      import.meta.env.VITE_SERVER_URL || "http://localhost:3001";
-    const apiUrl = `${serverUrl}/api/chat`;
-    this.chatService = new ChatService(apiUrl);
   }
 
   public setStatuePosition(position: { x: number; y: number }): void {
@@ -375,20 +369,15 @@ export class ChatSystem {
     this.isLoadingResponse = true;
     this.showLoadingIndicator();
 
-    try {
-      const response = await this.chatService.sendMessage(message);
+    // Simulate a response (server integration disabled)
+    setTimeout(() => {
       this.hideLoadingIndicator();
-      this.addChatMessage("statue", response);
-    } catch (error) {
-      this.hideLoadingIndicator();
-      console.error("Error getting chat response:", error);
       this.addChatMessage(
         "statue",
-        "I apologize, but I'm having trouble responding right now. Please try again later.",
+        "I'm currently offline. Chat functionality will be available when the server is connected.",
       );
-    } finally {
       this.isLoadingResponse = false;
-    }
+    }, 500);
   }
 
   private showLoadingIndicator(): void {
