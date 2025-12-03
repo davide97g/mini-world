@@ -102,15 +102,9 @@ const MobileControls = ({
   }
 
   return (
-    <div
-      className="fixed inset-0 pointer-events-none z-9999"
-      style={{ zIndex: 9999 }}
-    >
+    <div className="fixed inset-0 pointer-events-none z-[9999]">
       {/* Semi-transparent overlay background for controls area */}
-      <div
-        className="absolute bottom-0 left-0 right-0 h-32 bg-black opacity-50 pointer-events-none"
-        style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
-      />
+      <div className="absolute bottom-0 left-0 right-0 h-32 bg-background/50 backdrop-blur-sm pointer-events-none" />
 
       {/* Controls Container - Bottom Center */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-auto flex items-center gap-3">
@@ -119,11 +113,7 @@ const MobileControls = ({
           {/* Up Button */}
           <button
             type="button"
-            className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-10 bg-gray-900 border-2 border-gray-400 rounded-lg flex items-center justify-center text-white text-lg font-bold active:bg-gray-600 select-none touch-none shadow-lg"
-            style={{
-              backgroundColor: "rgba(17, 24, 39, 0.95)",
-              borderColor: "rgba(156, 163, 175, 0.8)",
-            }}
+            className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-10 bg-card border-2 border-border rounded-lg flex items-center justify-center text-foreground text-lg font-bold active:bg-accent select-none touch-none shadow-md hover:ev-glow-sm transition-shadow"
             onTouchStart={(e) => handleTouchStart("up", e)}
             onTouchEnd={(e) => handleTouchEnd("up", e)}
             onMouseDown={() => handleMouseDown("up")}
@@ -137,11 +127,7 @@ const MobileControls = ({
           {/* Down Button */}
           <button
             type="button"
-            className="absolute bottom-0 left-1/2 -translate-x-1/2 w-10 h-10 bg-gray-900 border-2 border-gray-400 rounded-lg flex items-center justify-center text-white text-lg font-bold active:bg-gray-600 select-none touch-none shadow-lg"
-            style={{
-              backgroundColor: "rgba(17, 24, 39, 0.95)",
-              borderColor: "rgba(156, 163, 175, 0.8)",
-            }}
+            className="absolute bottom-0 left-1/2 -translate-x-1/2 w-10 h-10 bg-card border-2 border-border rounded-lg flex items-center justify-center text-foreground text-lg font-bold active:bg-accent select-none touch-none shadow-md hover:ev-glow-sm transition-shadow"
             onTouchStart={(e) => handleTouchStart("down", e)}
             onTouchEnd={(e) => handleTouchEnd("down", e)}
             onMouseDown={() => handleMouseDown("down")}
@@ -155,11 +141,7 @@ const MobileControls = ({
           {/* Left Button */}
           <button
             type="button"
-            className="absolute left-0 top-1/2 -translate-y-1/2 w-10 h-10 bg-gray-900 border-2 border-gray-400 rounded-lg flex items-center justify-center text-white text-lg font-bold active:bg-gray-600 select-none touch-none shadow-lg"
-            style={{
-              backgroundColor: "rgba(17, 24, 39, 0.95)",
-              borderColor: "rgba(156, 163, 175, 0.8)",
-            }}
+            className="absolute left-0 top-1/2 -translate-y-1/2 w-10 h-10 bg-card border-2 border-border rounded-lg flex items-center justify-center text-foreground text-lg font-bold active:bg-accent select-none touch-none shadow-md hover:ev-glow-sm transition-shadow"
             onTouchStart={(e) => handleTouchStart("left", e)}
             onTouchEnd={(e) => handleTouchEnd("left", e)}
             onMouseDown={() => handleMouseDown("left")}
@@ -173,11 +155,7 @@ const MobileControls = ({
           {/* Right Button */}
           <button
             type="button"
-            className="absolute right-0 top-1/2 -translate-y-1/2 w-10 h-10 bg-gray-900 border-2 border-gray-400 rounded-lg flex items-center justify-center text-white text-lg font-bold active:bg-gray-600 select-none touch-none shadow-lg"
-            style={{
-              backgroundColor: "rgba(17, 24, 39, 0.95)",
-              borderColor: "rgba(156, 163, 175, 0.8)",
-            }}
+            className="absolute right-0 top-1/2 -translate-y-1/2 w-10 h-10 bg-card border-2 border-border rounded-lg flex items-center justify-center text-foreground text-lg font-bold active:bg-accent select-none touch-none shadow-md hover:ev-glow-sm transition-shadow"
             onTouchStart={(e) => handleTouchStart("right", e)}
             onTouchEnd={(e) => handleTouchEnd("right", e)}
             onMouseDown={() => handleMouseDown("right")}
@@ -194,11 +172,7 @@ const MobileControls = ({
           {/* A Button - Main Action */}
           <button
             type="button"
-            className="w-14 h-14 bg-green-600 border-2 border-green-300 rounded-full flex items-center justify-center text-white text-lg font-bold active:bg-green-500 select-none touch-none shadow-lg"
-            style={{
-              backgroundColor: "rgba(22, 163, 74, 0.95)",
-              borderColor: "rgba(134, 239, 172, 0.8)",
-            }}
+            className="w-14 h-14 bg-ev-teal/90 border-2 border-ev-teal rounded-full flex items-center justify-center text-background text-lg font-bold active:bg-ev-tealDark select-none touch-none shadow-md hover:ev-glow transition-shadow"
             onTouchStart={handleActionA}
             onTouchEnd={(e) => e.preventDefault()}
             onClick={handleActionA}
@@ -210,11 +184,7 @@ const MobileControls = ({
           {/* B Button - Cancel */}
           <button
             type="button"
-            className="w-14 h-14 bg-red-600 border-2 border-red-300 rounded-full flex items-center justify-center text-white text-lg font-bold active:bg-red-500 select-none touch-none shadow-lg"
-            style={{
-              backgroundColor: "rgba(220, 38, 38, 0.95)",
-              borderColor: "rgba(252, 165, 165, 0.8)",
-            }}
+            className="w-14 h-14 bg-danger-rust/90 border-2 border-danger-rust rounded-full flex items-center justify-center text-foreground text-lg font-bold active:bg-danger-rustDark select-none touch-none shadow-md hover:ev-glow-sm transition-shadow"
             onTouchStart={handleActionB}
             onTouchEnd={(e) => e.preventDefault()}
             onClick={handleActionB}
@@ -226,11 +196,7 @@ const MobileControls = ({
           {/* Start Button */}
           <button
             type="button"
-            className="w-16 h-10 bg-blue-600 border-2 border-blue-300 rounded-lg flex items-center justify-center text-white text-xs font-bold active:bg-blue-500 select-none touch-none shadow-lg"
-            style={{
-              backgroundColor: "rgba(37, 99, 235, 0.95)",
-              borderColor: "rgba(147, 197, 253, 0.8)",
-            }}
+            className="w-16 h-10 bg-primary/90 border-2 border-primary rounded-lg flex items-center justify-center text-primary-foreground text-xs font-bold active:bg-primary/80 select-none touch-none shadow-md hover:ev-glow-sm transition-shadow"
             onTouchStart={handleStart}
             onTouchEnd={(e) => e.preventDefault()}
             onClick={handleStart}

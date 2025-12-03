@@ -1,11 +1,13 @@
 import Phaser from "phaser";
-import { STATUE_GREETING } from "../config/ChatConfig";
+
 import {
   CHAT_MAX_MESSAGES,
   CHAT_WIDTH,
   STATUE_PROXIMITY_DISTANCE,
 } from "../config/GameConstants";
 import { ChatService } from "../services/ChatService";
+
+export const STATUE_GREETING = "Hello! I'm an old statue 🗿";
 
 interface ChatMessage {
   container: Phaser.GameObjects.Container;

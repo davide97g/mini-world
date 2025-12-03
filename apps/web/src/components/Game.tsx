@@ -62,12 +62,7 @@ const Game = () => {
       <div
         id="game-container"
         ref={gameRef}
-        style={{
-          width: "100vw",
-          height: "100vh",
-          margin: 0,
-          padding: 0,
-        }}
+        className="w-screen h-screen m-0 p-0"
       />
       <MobileControls
         onDirectionChange={handleDirectionChange}
@@ -75,20 +70,7 @@ const Game = () => {
         onActionB={handleActionB}
         onStart={handleStart}
       />
-      <div
-        className="absolute bottom-4 right-4 text-white px-2 py-1 rounded pointer-events-none z-9999"
-        style={{
-          zIndex: 9999,
-          backgroundColor: "rgba(0, 0, 0, 0.5)",
-          position: "absolute",
-          bottom: "4px",
-          right: "4px",
-          fontFamily: "monospace",
-          fontSize: "12px",
-          textShadow: "1px 1px 2px rgba(0, 0, 0, 0.8)",
-          letterSpacing: "0.5px",
-        }}
-      >
+      <div className="absolute bottom-4 right-4 bg-background/80 backdrop-blur-sm text-foreground px-2 py-1 rounded-md pointer-events-none z-[9999] font-mono text-xs shadow-md border border-border/50">
         v{packageJson.version}
       </div>
     </>
