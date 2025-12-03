@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { useEffect, useRef } from "react";
+import packageJson from "../../package.json";
 import { createGameConfig } from "../game/GameConfig";
 import MobileControls from "./MobileControls";
 
@@ -74,6 +75,18 @@ const Game = () => {
         onActionB={handleActionB}
         onStart={handleStart}
       />
+      <div
+        className="absolute bottom-4 right-4 text-white text-xs px-2 py-1 rounded pointer-events-none z-9999"
+        style={{
+          zIndex: 9999,
+          backgroundColor: "rgba(0, 0, 0, 0.5)",
+          position: "absolute",
+          bottom: "4px",
+          right: "4px",
+        }}
+      >
+        v{packageJson.version}
+      </div>
     </>
   );
 };
