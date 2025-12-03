@@ -12,6 +12,16 @@ import {
   MultiplayerService,
   type PlayerData,
 } from "./services/MultiplayerService";
+import {
+  type GameSaveData,
+  getCurrentWorldId,
+  loadGame,
+  saveGame,
+  setCurrentWorld,
+  startSession,
+  stopSession,
+  updatePlayTime,
+} from "./services/SaveService";
 import { ChatSystem } from "./systems/ChatSystem";
 import { DialogSystem } from "./systems/DialogSystem";
 import { MenuSystem } from "./systems/MenuSystem";
@@ -158,6 +168,14 @@ export class GameScene extends Phaser.Scene {
     new Map();
   private nearbyTiles: Set<string> = new Set(); // Track tiles currently in proximity
 
+  // Tile info hover system
+  private hoveredTileInfo: {
+    tileX: number;
+    tileY: number;
+    info: string;
+  } | null = null;
+  private tileInfoPopup?: Phaser.GameObjects.Container;
+
   // Collection limits per item type
   private readonly COLLECTION_LIMITS: Map<string, number> = new Map([
     ["stone", 10],
@@ -171,11 +189,34 @@ export class GameScene extends Phaser.Scene {
   private readonly TREE_TILE_GID = 122;
   private readonly WOOD_REQUIRED_FOR_TREE = 4;
 
+  // Save system
+  private currentWorldId: string | null = null;
+  private autoSaveInterval?: number;
+  private lastSaveTime: number = 0;
+  private readonly AUTO_SAVE_INTERVAL = 30000; // 30 seconds
+  private readonly MIN_SAVE_INTERVAL = 2000; // Minimum 2 seconds between saves
+  // Track tiles that were placed/modified by the player
+  private placedTiles: Map<
+    string,
+    { x: number; y: number; gid: number; collides: boolean }
+  > = new Map();
+
   constructor() {
     super({ key: "GameScene" });
   }
 
   shutdown(): void {
+    // Save game state before shutting down
+    if (this.currentWorldId) {
+      this.saveGameState();
+      stopSession(this.currentWorldId);
+    }
+
+    // Clean up auto-save interval
+    if (this.autoSaveInterval !== undefined) {
+      clearInterval(this.autoSaveInterval);
+    }
+
     // Clean up mobile event listeners
     if (this.isMobile) {
       window.removeEventListener(
@@ -203,6 +244,11 @@ export class GameScene extends Phaser.Scene {
       progressBar.destroy();
     });
     this.tileProgressBars.clear();
+
+    // Clean up tile info popup
+    if (this.tileInfoPopup) {
+      this.tileInfoPopup.destroy();
+    }
 
     // Stop music
     if (this.mainThemeMusic?.isPlaying) {
@@ -294,6 +340,7 @@ export class GameScene extends Phaser.Scene {
       this.cursors = this.input.keyboard?.createCursorKeys();
     }
 
+    // Use spawn point as default, but will be overridden by saved position if available
     const spawnX = spawnPoint.x ?? 0;
     const spawnY = spawnPoint.y ?? 0;
     this.player = new Player(
@@ -357,6 +404,288 @@ export class GameScene extends Phaser.Scene {
     this.setupInventoryControls();
     this.setupCollectionControls();
     this.setupTreeSpawningControls();
+    this.setupTileInfoHover();
+
+    // Initialize save system
+    this.initSaveSystem();
+  }
+
+  /**
+   * Initialize save system - load game state and set up auto-save
+   */
+  private initSaveSystem(): void {
+    // Get current world ID
+    this.currentWorldId = getCurrentWorldId();
+
+    if (this.currentWorldId) {
+      const worldId = this.currentWorldId;
+      // Delay loading slightly to ensure map is fully initialized
+      this.time.delayedCall(100, () => {
+        if (this.currentWorldId === worldId) {
+          this.loadGameState(worldId);
+          startSession(worldId);
+        }
+      });
+    }
+
+    // Set up auto-save
+    this.setupAutoSave();
+
+    // Save on page unload
+    window.addEventListener("beforeunload", () => {
+      if (this.currentWorldId) {
+        this.saveGameState();
+        stopSession(this.currentWorldId);
+      }
+    });
+  }
+
+  /**
+   * Set up auto-save interval
+   */
+  private setupAutoSave(): void {
+    if (this.autoSaveInterval !== undefined) {
+      clearInterval(this.autoSaveInterval);
+    }
+
+    this.autoSaveInterval = window.setInterval(() => {
+      if (this.currentWorldId) {
+        this.saveGameState();
+        updatePlayTime(this.currentWorldId);
+      }
+    }, this.AUTO_SAVE_INTERVAL);
+  }
+
+  /**
+   * Save current game state
+   */
+  private saveGameState(): void {
+    if (!this.currentWorldId || !this.player || !this.gameMap) {
+      return;
+    }
+
+    // Throttle saves to prevent too frequent writes
+    const now = Date.now();
+    if (now - this.lastSaveTime < this.MIN_SAVE_INTERVAL) {
+      return;
+    }
+    this.lastSaveTime = now;
+
+    const playerPos = this.player.getPosition();
+    const playerDirection = this.player.getDirection();
+
+    // Convert inventory Map to Record
+    const inventory: Record<string, number> = {};
+    this.inventoryItems.forEach((item, itemId) => {
+      if (item.quantity > 0) {
+        inventory[itemId] = item.quantity;
+      }
+    });
+
+    // Convert tile collection counts Map to Record
+    const tileCollectionCounts: Record<string, number> = {};
+    this.tileCollectionCounts.forEach((count, tileKey) => {
+      tileCollectionCounts[tileKey] = count;
+    });
+
+    // Collect modified tiles (trees that were placed) from tracked placed tiles
+    const modifiedTiles: Array<{
+      x: number;
+      y: number;
+      gid: number;
+      collides: boolean;
+    }> = [];
+
+    // Use the tracked placed tiles map for efficiency
+    this.placedTiles.forEach((tileData) => {
+      // Verify the tile still exists and matches (in case map was reset)
+      const tile = this.worldLayer?.getTileAt(tileData.x, tileData.y);
+      if (tile?.collides) {
+        modifiedTiles.push(tileData);
+      }
+    });
+
+    // Collect hidden tiles (tiles that were collected and hidden)
+    const hiddenTiles: Array<{ x: number; y: number }> = [];
+
+    if (this.worldLayer) {
+      // Scan for hidden tiles (alpha = 0)
+      for (let y = 0; y < this.gameMap.height; y += 1) {
+        for (let x = 0; x < this.gameMap.width; x += 1) {
+          const tile = this.worldLayer.getTileAt(x, y);
+          if (tile && tile.alpha === 0) {
+            hiddenTiles.push({ x, y });
+          }
+        }
+      }
+    }
+
+    // Load existing save data to preserve metadata
+    const existingSave = loadGame(this.currentWorldId);
+    const saveData: GameSaveData = {
+      worldId: this.currentWorldId,
+      worldName: existingSave?.worldName || "Unknown World",
+      createdAt: existingSave?.createdAt || Date.now(),
+      lastPlayedAt: Date.now(),
+      totalPlayTime: existingSave?.totalPlayTime || 0,
+      sessionStartTime: existingSave?.sessionStartTime,
+      playerPosition: {
+        x: playerPos.x,
+        y: playerPos.y,
+        direction: playerDirection,
+      },
+      inventory,
+      tileCollectionCounts,
+      modifiedTiles,
+      hiddenTiles,
+      musicVolume: this.musicVolume,
+      isMuted: this.isMuted,
+    };
+
+    saveGame(saveData);
+    debugLog("Game state saved");
+  }
+
+  /**
+   * Load game state
+   */
+  private loadGameState(worldId: string): void {
+    const saveData = loadGame(worldId);
+    if (!saveData) {
+      debugLog("No save data found, starting fresh game");
+      return;
+    }
+
+    if (!this.gameMap || !this.worldLayer) {
+      debugWarn("Cannot load game state: map not ready");
+      return;
+    }
+
+    debugLog("Loading game state for world:", saveData.worldName);
+
+    // Check if this is a new game (no progress made)
+    const isNewGame =
+      saveData.playerPosition.x === 0 &&
+      saveData.playerPosition.y === 0 &&
+      Object.keys(saveData.inventory).length === 0 &&
+      saveData.modifiedTiles.length === 0 &&
+      saveData.hiddenTiles.length === 0;
+
+    // Load player position - use spawn point for new games
+    if (this.player && saveData.playerPosition) {
+      let x = saveData.playerPosition.x;
+      let y = saveData.playerPosition.y;
+
+      // If it's a new game, use spawn point instead of (0, 0)
+      if (isNewGame && this.gameMap) {
+        const spawnPoint = this.gameMap.findObject(
+          "Objects",
+          (obj) => obj.name === "Spawn Point",
+        );
+        if (spawnPoint) {
+          x = spawnPoint.x ?? 0;
+          y = spawnPoint.y ?? 0;
+          debugLog("New game detected, using spawn point:", x, y);
+        }
+      }
+
+      this.player.getSprite().setPosition(x, y);
+    }
+
+    // Load inventory
+    if (saveData.inventory) {
+      Object.entries(saveData.inventory).forEach(([itemId, quantity]) => {
+        const item = this.inventoryItems.get(itemId);
+        if (item) {
+          item.quantity = quantity;
+        }
+      });
+      this.updateInventoryDisplay();
+    }
+
+    // Load tile collection counts
+    if (saveData.tileCollectionCounts) {
+      Object.entries(saveData.tileCollectionCounts).forEach(
+        ([tileKey, count]) => {
+          this.tileCollectionCounts.set(tileKey, count);
+        },
+      );
+    }
+
+    // Restore modified tiles (trees that were placed)
+    if (saveData.modifiedTiles && this.worldLayer) {
+      this.placedTiles.clear(); // Clear existing tracking
+      saveData.modifiedTiles.forEach((tileData) => {
+        this.worldLayer?.putTileAt(tileData.gid, tileData.x, tileData.y);
+        const tile = this.worldLayer?.getTileAt(tileData.x, tileData.y);
+        if (tile) {
+          tile.setCollision(tileData.collides);
+          // Track this restored tile
+          const tileKey = `${tileData.x},${tileData.y}`;
+          this.placedTiles.set(tileKey, tileData);
+        }
+      });
+      debugLog(`Restored ${saveData.modifiedTiles.length} placed tiles`);
+    }
+
+    // Restore hidden tiles (tiles that were collected)
+    if (saveData.hiddenTiles && this.worldLayer) {
+      saveData.hiddenTiles.forEach((tileData) => {
+        const tile = this.worldLayer?.getTileAt(tileData.x, tileData.y);
+        if (tile) {
+          tile.setAlpha(0);
+          tile.setCollision(false);
+        }
+      });
+    }
+
+    // Load music settings
+    if (saveData.musicVolume !== undefined) {
+      this.musicVolume = saveData.musicVolume;
+      this.setMusicVolume(saveData.musicVolume);
+    }
+    if (saveData.isMuted !== undefined) {
+      this.isMuted = saveData.isMuted;
+      if (this.mainThemeMusic) {
+        if (this.isMuted) {
+          this.mainThemeMusic.setVolume(0);
+        } else {
+          this.mainThemeMusic.setVolume(this.musicVolume);
+        }
+      }
+      this.updateVolumeIcon();
+    }
+
+    debugLog("Game state loaded successfully");
+  }
+
+  /**
+   * Set the current world ID (called from Game component)
+   */
+  public setWorldId(worldId: string): void {
+    this.currentWorldId = worldId;
+    setCurrentWorld(worldId);
+    if (this.currentWorldId) {
+      // Delay loading to ensure map is ready
+      this.time.delayedCall(200, () => {
+        if (this.currentWorldId) {
+          this.loadGameState(this.currentWorldId);
+          startSession(this.currentWorldId);
+        }
+      });
+    }
+  }
+
+  /**
+   * Schedule a save (throttled to prevent too frequent saves)
+   * This is now handled by calling saveGameState() directly when needed
+   */
+  private scheduleSave(): void {
+    // Trigger save if enough time has passed since last save
+    const now = Date.now();
+    if (now - this.lastSaveTime >= this.MIN_SAVE_INTERVAL) {
+      this.saveGameState();
+    }
   }
 
   private setupMobileControls(): void {
@@ -743,6 +1072,15 @@ export class GameScene extends Phaser.Scene {
 
     // Update progress bars visibility based on proximity
     this.updateProgressBarsVisibility();
+
+    // Periodically save player position (throttled)
+    const now = Date.now();
+    if (now - this.lastSaveTime > this.MIN_SAVE_INTERVAL * 2) {
+      // Save position every 4 seconds if player is moving
+      if (this.player.isMoving()) {
+        this.saveGameState();
+      }
+    }
   }
 
   private initMusic(): void {
@@ -1575,6 +1913,8 @@ export class GameScene extends Phaser.Scene {
     if (item) {
       item.quantity += quantity;
       this.updateInventoryDisplay();
+      // Trigger save after inventory change
+      this.scheduleSave();
     }
   }
 
@@ -1586,6 +1926,8 @@ export class GameScene extends Phaser.Scene {
     if (item && item.quantity >= quantity) {
       item.quantity -= quantity;
       this.updateInventoryDisplay();
+      // Trigger save after inventory change
+      this.scheduleSave();
       return true;
     }
     return false;
@@ -1745,6 +2087,9 @@ export class GameScene extends Phaser.Scene {
           // Update collection count
           this.tileCollectionCounts.set(tileKey, newCount);
 
+          // Trigger save after collection
+          this.scheduleSave();
+
           // Get collection limit for this item type
           const limit = this.COLLECTION_LIMITS.get(itemId) || Infinity;
 
@@ -1793,6 +2138,145 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private setupTileInfoHover(): void {
+    // Set up mouse move handler to detect tiles with "info" property
+    this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
+      this.handleTileInfoHover(pointer);
+    });
+
+    // Set up mouse out handler to hide popup
+    this.input.on("pointerout", () => {
+      this.hideTileInfoPopup();
+      this.hoveredTileInfo = null;
+    });
+
+    // Set up "a" key handler to show info in dialog
+    const aKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.A);
+
+    aKey?.on("down", () => {
+      if (
+        this.chatSystem?.isOpen() ||
+        this.menuSystem?.isOpen() ||
+        this.dialogSystem?.isVisible() ||
+        this.isInventoryOpen
+      ) {
+        return;
+      }
+
+      if (this.hoveredTileInfo) {
+        this.showTileInfoInDialog(this.hoveredTileInfo.info);
+      }
+    });
+  }
+
+  private handleTileInfoHover(pointer: Phaser.Input.Pointer): void {
+    if (!this.gameMap || !this.worldLayer) return;
+
+    const worldX = pointer.worldX;
+    const worldY = pointer.worldY;
+
+    const tile = this.worldLayer.getTileAtWorldXY(worldX, worldY);
+    if (!tile || tile.index === null || tile.index === -1) {
+      this.hideTileInfoPopup();
+      this.hoveredTileInfo = null;
+      return;
+    }
+
+    // Check if tile has "info" property
+    let infoText: string | null = null;
+    if (tile.properties) {
+      if (Array.isArray(tile.properties)) {
+        const infoProperty = tile.properties.find(
+          (prop: { name: string; value: unknown }) => prop.name === "info",
+        );
+        if (infoProperty && typeof infoProperty.value === "string") {
+          infoText = infoProperty.value;
+        }
+      } else if (
+        typeof tile.properties === "object" &&
+        "info" in tile.properties
+      ) {
+        const infoValue = (tile.properties as { info: unknown }).info;
+        if (typeof infoValue === "string") {
+          infoText = infoValue;
+        }
+      }
+    }
+
+    if (infoText) {
+      const tileX = tile.x;
+      const tileY = tile.y;
+      this.hoveredTileInfo = { tileX, tileY, info: infoText };
+      this.showTileInfoPopup(tileX, tileY);
+    } else {
+      this.hideTileInfoPopup();
+      this.hoveredTileInfo = null;
+    }
+  }
+
+  private showTileInfoPopup(tileX: number, tileY: number): void {
+    if (!this.gameMap) return;
+
+    const tileWidth = this.gameMap.tileWidth || 32;
+    const tileHeight = this.gameMap.tileHeight || 32;
+
+    // Calculate world position (center of tile)
+    const worldX = tileX * tileWidth + tileWidth / 2;
+    const worldY = tileY * tileHeight + tileHeight / 2;
+
+    // Create or update popup
+    if (!this.tileInfoPopup) {
+      this.tileInfoPopup = this.add.container(
+        worldX,
+        worldY - tileHeight / 2 - 8,
+      );
+      this.tileInfoPopup.setDepth(20); // Above tiles but below player
+
+      // Popup dimensions
+      const popupSize = 24;
+      const padding = 4;
+
+      // Background (similar to progress bar)
+      const background = this.add.rectangle(
+        0,
+        0,
+        popupSize + padding * 2,
+        popupSize + padding * 2,
+        0x000000,
+        0.9,
+      );
+      background.setStrokeStyle(1, 0x333333, 1);
+      this.tileInfoPopup.add(background);
+
+      // Info icon (simple "i" text or graphics)
+      const infoIcon = this.add.graphics();
+      infoIcon.lineStyle(2, 0x4ecdc4, 1);
+      // Draw "i" icon - circle with dot
+      infoIcon.strokeCircle(0, 0, popupSize / 2 - 2);
+      infoIcon.fillStyle(0x4ecdc4, 1);
+      infoIcon.fillCircle(0, -popupSize / 4, 2);
+      this.tileInfoPopup.add(infoIcon);
+    } else {
+      // Update position
+      this.tileInfoPopup.setPosition(worldX, worldY - tileHeight / 2 - 8);
+    }
+
+    this.tileInfoPopup.setVisible(true);
+  }
+
+  private hideTileInfoPopup(): void {
+    if (this.tileInfoPopup) {
+      this.tileInfoPopup.setVisible(false);
+    }
+  }
+
+  private showTileInfoInDialog(infoText: string): void {
+    if (!this.dialogSystem) return;
+
+    // Show info text in dialog box with typing effect
+    this.dialogSystem.showDialog(infoText);
+  }
+
   private handleSpawnTree(): void {
     if (!this.player || !this.gameMap || !this.worldLayer) {
       return;
@@ -1829,6 +2313,16 @@ export class GameScene extends Phaser.Scene {
     const newTile = this.worldLayer.getTileAt(tileX, tileY);
     if (newTile) {
       newTile.setCollision(true);
+
+      // Track this placed tile
+      const tileKey = `${tileX},${tileY}`;
+      const tileGID = this.TREE_TILE_GID;
+      this.placedTiles.set(tileKey, {
+        x: tileX,
+        y: tileY,
+        gid: tileGID,
+        collides: true,
+      });
     }
 
     // Remove wood from inventory
@@ -1841,6 +2335,8 @@ export class GameScene extends Phaser.Scene {
       debugLog(
         `Spawned tree at (${tileX}, ${tileY}) using ${this.WOOD_REQUIRED_FOR_TREE} wood`,
       );
+      // Trigger immediate save after placing tree
+      this.saveGameState();
     }
   }
 

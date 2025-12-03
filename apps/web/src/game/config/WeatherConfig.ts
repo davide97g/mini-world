@@ -3,6 +3,14 @@ export interface WeatherData {
   windspeed: number;
   weathercode: number;
   time: string;
+  uv_index?: number;
+  shortwave_radiation?: number;
+  soil_moisture_0_to_7cm?: number;
+  relative_humidity_2m?: number;
+  cloudcover?: number;
+  pressure_msl?: number;
+  windgusts_10m?: number;
+  apparent_temperature?: number;
   daily?: {
     sunrise: string[];
     sunset: string[];
