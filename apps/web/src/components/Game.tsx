@@ -76,13 +76,17 @@ const Game = () => {
         onStart={handleStart}
       />
       <div
-        className="absolute bottom-4 right-4 text-white text-xs px-2 py-1 rounded pointer-events-none z-9999"
+        className="absolute bottom-4 right-4 text-white px-2 py-1 rounded pointer-events-none z-9999"
         style={{
           zIndex: 9999,
           backgroundColor: "rgba(0, 0, 0, 0.5)",
           position: "absolute",
           bottom: "4px",
           right: "4px",
+          fontFamily: "monospace",
+          fontSize: "12px",
+          textShadow: "1px 1px 2px rgba(0, 0, 0, 0.8)",
+          letterSpacing: "0.5px",
         }}
       >
         v{packageJson.version}
