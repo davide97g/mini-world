@@ -54,7 +54,7 @@ export class MenuSystem {
 
     MENU_ENTRIES.forEach((entry, index) => {
       const y = startY + index * entryHeight;
-      const entryText = this.scene.add.text(padding, y, entry, {
+      const entryText = this.scene.add.text(padding, y, entry.label, {
         font: "16px monospace",
         color: "#ffffff",
         align: "left",
@@ -134,7 +134,7 @@ export class MenuSystem {
       if (this.isMenuOpen) {
         if (this.currentMenuState === "main") {
           const selectedEntry = MENU_ENTRIES[this.selectedMenuIndex];
-          this.handleMenuSelect(selectedEntry);
+          this.handleMenuSelect(selectedEntry.id);
         } else if (this.currentMenuState === "options") {
           const optionsEntries = ["Volume", "Back"];
           const selectedEntry = optionsEntries[this.selectedMenuIndex];
@@ -176,7 +176,10 @@ export class MenuSystem {
         return;
       }
       text.setVisible(true);
-      const entryName = entries[index];
+      const entryName =
+        typeof entries[index] === "string"
+          ? entries[index]
+          : (entries[index] as { label: string }).label;
       if (index === this.selectedMenuIndex) {
         text.setFill("#ffffff");
         text.setBackgroundColor("#666666");
