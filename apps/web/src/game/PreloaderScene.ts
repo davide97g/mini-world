@@ -25,7 +25,7 @@ interface PreloaderConfig {
 const PRELOADER_CONFIG: PreloaderConfig = {
   barWidth: 400,
   barHeight: 32,
-  duration: 2000,
+  duration: 500,
   updateInterval: 16,
   backgroundColor: 0x1a1a2e,
   patternColor: 0x16213e,

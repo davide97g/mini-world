@@ -98,9 +98,9 @@ const WorldSelection = ({
 
   return (
     <Dialog open={true} onOpenChange={() => {}}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto dark bg-gray-900 border-2 border-white border-opacity-30">
-        <DialogHeader>
-          <DialogTitle className="text-4xl font-bold text-white text-center font-mono">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto dark bg-gray-900 border-2 border-white border-opacity-30 p-8">
+        <DialogHeader className="mb-8">
+          <DialogTitle className="text-4xl font-bold text-white text-center font-mono mb-2">
             Mini World
           </DialogTitle>
           <DialogDescription className="text-gray-400 text-center text-sm">
@@ -109,11 +109,11 @@ const WorldSelection = ({
         </DialogHeader>
 
         {showCreateForm ? (
-          <div className="space-y-4">
-            <div className="space-y-2">
+          <div className="space-y-6">
+            <div className="space-y-3">
               <Label
                 htmlFor="world-name"
-                className="text-white font-mono text-sm"
+                className="text-white font-mono text-base"
               >
                 World Name
               </Label>
@@ -124,7 +124,7 @@ const WorldSelection = ({
                 onChange={(e) => setNewWorldName(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Enter world name..."
-                className="bg-gray-800 border-gray-600 text-white font-mono focus:border-white focus:border-opacity-50"
+                className="bg-gray-800 border-gray-600 text-white font-mono focus:border-white focus:border-opacity-50 h-12 text-base"
                 disabled={isCreating}
               />
             </div>
@@ -133,7 +133,7 @@ const WorldSelection = ({
                 type="button"
                 onClick={handleCreateWorld}
                 disabled={isCreating || !newWorldName.trim()}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-mono"
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-mono h-12 text-base"
               >
                 {isCreating ? "Creating..." : "Create World"}
               </Button>
@@ -143,7 +143,7 @@ const WorldSelection = ({
                   onClick={() => setShowCreateForm(false)}
                   disabled={isCreating}
                   variant="secondary"
-                  className="bg-gray-700 hover:bg-gray-600 text-white font-mono"
+                  className="bg-gray-700 hover:bg-gray-600 text-white font-mono h-12 text-base"
                 >
                   Cancel
                 </Button>
@@ -152,35 +152,31 @@ const WorldSelection = ({
           </div>
         ) : (
           <>
-            <div className="space-y-3 mb-6 max-h-96 overflow-y-auto">
+            <div className="space-y-4 mb-8 max-h-96 overflow-y-auto">
               {worlds.length === 0 ? (
-                <p className="text-gray-400 text-center py-8 font-mono">
+                <p className="text-gray-400 text-center py-12 font-mono text-base">
                   No worlds found. Create your first world!
                 </p>
               ) : (
                 worlds.map((world) => (
                   <Card
                     key={world.worldId}
-                    className="bg-gray-800 border-gray-700 hover:bg-gray-750 hover:border-white hover:border-opacity-30 transition-all"
+                    className="bg-gray-800 border-gray-700 hover:bg-gray-750 hover:border-white hover:border-opacity-30 transition-all cursor-pointer"
+                    onClick={() => handleSelectWorld(world.worldId)}
                   >
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between gap-4">
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSelectWorld(world.worldId)}
-                          className="flex-1 text-left bg-transparent"
-                          aria-label={`Select world ${world.worldName}`}
-                        >
-                          <CardHeader className="p-0 pb-2">
-                            <CardTitle className="text-white font-mono text-lg">
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between gap-6">
+                        <div className="flex-1 min-w-0">
+                          <CardHeader className="p-0 mb-4">
+                            <CardTitle className="text-white font-mono text-2xl font-bold mb-1">
                               {world.worldName}
                             </CardTitle>
                           </CardHeader>
-                          <CardDescription className="text-gray-400 text-xs font-mono space-y-1">
-                            <p>
+                          <CardDescription className="text-gray-400 text-sm font-mono space-y-2">
+                            <p className="text-gray-300">
                               Playtime: {formatPlayTime(world.totalPlayTime)}
                             </p>
-                            <p>
+                            <p className="text-gray-400">
                               Last played:{" "}
                               {new Date(
                                 world.lastPlayedAt,
@@ -190,8 +186,8 @@ const WorldSelection = ({
                               ).toLocaleTimeString()}
                             </p>
                           </CardDescription>
-                        </Button>
-                        <div className="flex items-center gap-2">
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
                           <Button
                             type="button"
                             onClick={(e) =>
@@ -203,7 +199,7 @@ const WorldSelection = ({
                             }
                             variant="destructive"
                             size="sm"
-                            className="bg-red-600 hover:bg-red-700 text-white text-xs font-mono"
+                            className="bg-red-600 hover:bg-red-700 text-white text-sm font-mono px-4 py-2"
                             aria-label={`Delete world ${world.worldName}`}
                           >
                             Delete
@@ -219,7 +215,7 @@ const WorldSelection = ({
             <Button
               type="button"
               onClick={() => setShowCreateForm(true)}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-mono"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-mono h-12 text-base font-semibold"
             >
               Create New World
             </Button>

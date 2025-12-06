@@ -29,7 +29,6 @@ import { DialogSystem } from "./systems/DialogSystem";
 import { InventorySystem } from "./systems/InventorySystem";
 import { MenuSystem } from "./systems/MenuSystem";
 import { TileManagementSystem } from "./systems/TileManagementSystem";
-import { WeatherSystem } from "./systems/WeatherSystem";
 import { debugLog, debugWarn } from "./utils/DebugUtils";
 import { gameEventBus } from "./utils/GameEventBus";
 import {
@@ -51,7 +50,6 @@ export class GameScene extends Phaser.Scene {
   // Systems
   private menuSystem?: MenuSystem;
   private dialogSystem?: DialogSystem;
-  protected weatherSystem?: WeatherSystem;
   private chatSystem?: ChatSystem;
   private audioSystem?: AudioSystem;
   private inventorySystem?: InventorySystem;
@@ -690,9 +688,6 @@ export class GameScene extends Phaser.Scene {
 
     // Initialize dialog system
     this.dialogSystem = new DialogSystem();
-
-    // Initialize weather system
-    this.weatherSystem = new WeatherSystem(this);
 
     // Initialize chat system
     this.chatSystem = new ChatSystem(this);
