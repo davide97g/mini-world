@@ -27,6 +27,7 @@ import { DialogSystem } from "./systems/DialogSystem";
 import { InventorySystem } from "./systems/InventorySystem";
 import { MenuSystem } from "./systems/MenuSystem";
 import { TileManagementSystem } from "./systems/TileManagementSystem";
+import { WeatherEffectsSystem } from "./systems/WeatherEffectsSystem";
 import { debugLog, debugWarn } from "./utils/DebugUtils";
 import { gameEventBus } from "./utils/GameEventBus";
 import {
@@ -55,6 +56,7 @@ export class GameScene extends Phaser.Scene {
   private tileManagementSystem?: TileManagementSystem;
   private animalSystem?: AnimalSystem;
   private dayNightSystem?: DayNightSystem;
+  private weatherEffectsSystem?: WeatherEffectsSystem;
 
   // Tile info hover system
   private hoveredTileInfo: {
@@ -100,6 +102,7 @@ export class GameScene extends Phaser.Scene {
     this.collectionSystem?.shutdown();
     this.audioSystem?.shutdown();
     this.dayNightSystem?.shutdown();
+    this.weatherEffectsSystem?.shutdown();
 
     // Clean up tile info popup
     if (this.tileInfoPopup) {
@@ -244,6 +247,10 @@ export class GameScene extends Phaser.Scene {
     // Initialize day/night system
     this.dayNightSystem = new DayNightSystem(this);
     this.dayNightSystem.init(camera);
+
+    // Initialize weather effects system
+    this.weatherEffectsSystem = new WeatherEffectsSystem(this);
+    this.weatherEffectsSystem.init(camera, this.player, this.gameMap);
 
     // Initialize systems
     this.initSystems();
@@ -629,6 +636,20 @@ export class GameScene extends Phaser.Scene {
     return this.dayNightSystem?.getTimeOfDay() || "day";
   }
 
+  /**
+   * Get current weather type
+   * Used by systems to check weather state
+   */
+  public getWeatherType():
+    | "clear"
+    | "cloudy"
+    | "foggy"
+    | "rain"
+    | "snow"
+    | "thunderstorm" {
+    return this.weatherEffectsSystem?.getWeatherType() || "clear";
+  }
+
   private setupMobileControls(): void {
     // Bind handlers to preserve 'this' context
     this.handleMobileDirectionChange =
@@ -828,6 +849,17 @@ export class GameScene extends Phaser.Scene {
       debugLog(`Time of day: ${timeOfDay.toUpperCase()}`);
     });
 
+    // Weather test mode toggle
+    this.input.keyboard?.on("keydown-W", () => {
+      this.weatherEffectsSystem?.toggleTestMode();
+      const isTestMode =
+        this.weatherEffectsSystem?.isTestModeEnabled() || false;
+      debugLog(`Weather test mode: ${isTestMode ? "ON" : "OFF"}`);
+      if (isTestMode) {
+        debugLog("Weather will cycle every 5 seconds");
+      }
+    });
+
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (!tileInfoMode || !this.gameMap) return;
 
@@ -920,6 +952,9 @@ export class GameScene extends Phaser.Scene {
 
     // Update day/night system overlay
     this.dayNightSystem?.update();
+
+    // Update weather effects
+    this.weatherEffectsSystem?.update();
 
     // Periodically save player position (throttled)
     const now = Date.now();

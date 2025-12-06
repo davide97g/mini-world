@@ -9,6 +9,7 @@ import InventoryBar from "./ui/InventoryBar";
 import InventoryUI from "./ui/InventoryUI";
 import MenuUI from "./ui/MenuUI";
 import NotificationUI from "./ui/NotificationUI";
+import WeatherNotificationUI from "./ui/WeatherNotificationUI";
 import WeatherUI from "./ui/WeatherUI";
 
 interface GameUIProps {
@@ -335,6 +336,7 @@ const GameUI = ({ worldId }: GameUIProps) => {
         onItemSelect={handleItemSelect}
       />
       <WeatherUI />
+      <WeatherNotificationUI />
       <NotificationUI notifications={notifications} />
       <MobileControls
         onDirectionChange={handleDirectionChange}

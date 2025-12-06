@@ -34,7 +34,8 @@ export type GameEventType =
   | "game:exit-to-world-selection"
   | "audio:toggle-mute"
   | "audio:mute-state-changed"
-  | "inventory:item-selected";
+  | "inventory:item-selected"
+  | "weather:change";
 
 export interface GameEvent {
   type: GameEventType;
