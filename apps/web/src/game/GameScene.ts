@@ -22,6 +22,7 @@ import { AnimalSystem } from "./systems/AnimalSystem";
 import { AudioSystem } from "./systems/AudioSystem";
 import { ChatSystem } from "./systems/ChatSystem";
 import { CollectionSystem } from "./systems/CollectionSystem";
+import { DayNightSystem } from "./systems/DayNightSystem";
 import { DialogSystem } from "./systems/DialogSystem";
 import { InventorySystem } from "./systems/InventorySystem";
 import { MenuSystem } from "./systems/MenuSystem";
@@ -53,6 +54,7 @@ export class GameScene extends Phaser.Scene {
   private collectionSystem?: CollectionSystem;
   private tileManagementSystem?: TileManagementSystem;
   private animalSystem?: AnimalSystem;
+  private dayNightSystem?: DayNightSystem;
 
   // Tile info hover system
   private hoveredTileInfo: {
@@ -97,6 +99,7 @@ export class GameScene extends Phaser.Scene {
     // Clean up systems
     this.collectionSystem?.shutdown();
     this.audioSystem?.shutdown();
+    this.dayNightSystem?.shutdown();
 
     // Clean up tile info popup
     if (this.tileInfoPopup) {
@@ -237,6 +240,10 @@ export class GameScene extends Phaser.Scene {
     const camera = this.cameras.main;
     camera.startFollow(this.player.getSprite());
     camera.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
+
+    // Initialize day/night system
+    this.dayNightSystem = new DayNightSystem(this);
+    this.dayNightSystem.init(camera);
 
     // Initialize systems
     this.initSystems();
@@ -614,6 +621,14 @@ export class GameScene extends Phaser.Scene {
     return this.audioSystem?.getMusicVolume() || 0.5;
   }
 
+  /**
+   * Get current time of day
+   * Used by systems to check day/night state
+   */
+  public getTimeOfDay(): "day" | "night" {
+    return this.dayNightSystem?.getTimeOfDay() || "day";
+  }
+
   private setupMobileControls(): void {
     // Bind handlers to preserve 'this' context
     this.handleMobileDirectionChange =
@@ -806,6 +821,13 @@ export class GameScene extends Phaser.Scene {
       );
     });
 
+    // Day/night toggle for testing
+    this.input.keyboard?.on("keydown-N", () => {
+      this.dayNightSystem?.toggle();
+      const timeOfDay = this.dayNightSystem?.getTimeOfDay() || "day";
+      debugLog(`Time of day: ${timeOfDay.toUpperCase()}`);
+    });
+
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (!tileInfoMode || !this.gameMap) return;
 
@@ -895,6 +917,9 @@ export class GameScene extends Phaser.Scene {
 
     // Update all animals movement
     this.animalSystem?.update();
+
+    // Update day/night system overlay
+    this.dayNightSystem?.update();
 
     // Periodically save player position (throttled)
     const now = Date.now();
