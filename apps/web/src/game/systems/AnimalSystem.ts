@@ -2,9 +2,10 @@
  * Animal System - Handles animal spawning, animations, and movement
  */
 
-import type Phaser from "phaser";
+import Phaser from "phaser";
 import { ANIMAL_CONFIGS, type AnimalConfig } from "../config/AssetPaths";
 import type { Player } from "../entities/Player";
+import { gameEventBus } from "../utils/GameEventBus";
 
 /**
  * Configuration for animal animations
@@ -44,7 +45,7 @@ const createDefaultAnimationConfig = (
       name: `transition-${i + 1}`, // Will be overridden by actual transition name
       frameRate: 8,
       repeat: -1,
-      isMoving: true,
+      isMoving: false, // Animals don't move, they animate in place
       weight: transitionWeight,
     });
   }
@@ -67,9 +68,13 @@ const createDefaultAnimationConfig = (
 interface AnimalData {
   sprite: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
   config: AnimalConfig;
-  currentDirection?: { x: number; y: number };
   animationTimer?: Phaser.Time.TimerEvent;
   animationConfig: AnimalAnimationConfig;
+  currentHp: number; // Current HP
+  maxHp: number; // Maximum HP
+  isDead: boolean; // Whether the animal is dead
+  isPlayingTriggeredAnimation: boolean; // Whether currently playing a triggered animation
+  progressBar?: Phaser.GameObjects.Container; // Progress bar showing HP
 }
 
 /**
@@ -97,9 +102,14 @@ export class AnimalSystem {
   // Animation configuration - can be customized per animal type
   private animationConfigs: Map<string, AnimalAnimationConfig> = new Map();
 
-  // Movement settings
-  private readonly MOVEMENT_SPEED = 50; // Pixels per second
+  // Animation settings
   private readonly ANIMATION_CHANGE_INTERVAL = 2000; // Milliseconds
+  private readonly INTERACTION_DISTANCE = 50; // Pixels - distance for player interaction
+  private readonly DEATH_DISAPPEAR_DELAY = 2000; // Milliseconds - delay before removing dead animal
+  private readonly COLLISION_BODY_SCALE = 0.35; // Collision body size as percentage of sprite (35% = tighter collision)
+
+  // Callbacks
+  private onAnimalKilled?: (animalKey: string) => void; // Called when animal dies (to add items to inventory)
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -112,42 +122,49 @@ export class AnimalSystem {
    */
   private setupDefaultAnimationConfigs(): void {
     ANIMAL_CONFIGS.forEach((config) => {
-      const transitionCount = config.animations.transitions.length;
-      const defaultConfig = createDefaultAnimationConfig(transitionCount);
+      // Separate behavioral and triggered transitions
+      const behavioralTransitions = config.animations.transitions.filter(
+        (t) => t.type === "behavioral",
+      );
+
+      // Calculate weight for behavioral transitions (remaining 50% split evenly)
+      const behavioralWeight =
+        behavioralTransitions.length > 0
+          ? 0.5 / behavioralTransitions.length
+          : 0;
 
       // Map transition names from config to animation configs
       const transitions: AnimationConfig[] = config.animations.transitions.map(
-        (transition, index) => {
-          const baseConfig = defaultConfig.transitions[index] || {
+        (transition) => {
+          const isBehavioral = transition.type === "behavioral";
+          return {
             name: transition.name,
             frameRate: 8,
-            repeat: -1,
-            isMoving: true,
-            weight: 0.5 / transitionCount,
-          };
-          return {
-            ...baseConfig,
-            name: transition.name, // Use the actual transition name from config
+            repeat: isBehavioral ? -1 : 0, // Triggered animations play once
+            isMoving: false,
+            weight: isBehavioral ? behavioralWeight : 0, // Only behavioral animations have weight
           };
         },
       );
 
-      // Recalculate weights to ensure they sum to 1
-      const totalTransitionWeight = transitions.reduce(
-        (sum, t) => sum + t.weight,
-        0,
-      );
-      if (totalTransitionWeight > 0) {
-        transitions.forEach((t) => {
-          t.weight = (t.weight / totalTransitionWeight) * 0.5; // Normalize to 50%
-        });
-      }
-
       this.animationConfigs.set(config.key, {
-        idle: defaultConfig.idle,
+        idle: {
+          name: "idle",
+          frameRate: 8,
+          repeat: -1,
+          isMoving: false,
+          weight: 0.5, // 50% chance for idle
+        },
         transitions,
       });
     });
+  }
+
+  /**
+   * Set callback for when animal is killed
+   */
+  public setOnAnimalKilled(callback: (animalKey: string) => void): void {
+    this.onAnimalKilled = callback;
   }
 
   /**
@@ -285,18 +302,30 @@ export class AnimalSystem {
       .sprite(x, y, config.key, 0)
       .setScale(config.scale || 2);
 
-    // Set collision body size based on frame dimensions
-    const scaledWidth = config.frameWidth * (config.scale || 2) * 0.75;
-    const scaledHeight = config.frameHeight * (config.scale || 2) * 0.75;
+    // Set collision body size - smaller, centered around the bunny
+    const scale = config.scale || 2;
+    const scaledWidth = config.frameWidth * scale * this.COLLISION_BODY_SCALE;
+    const scaledHeight = config.frameHeight * scale * this.COLLISION_BODY_SCALE;
     sprite.setSize(scaledWidth, scaledHeight);
+
+    // Center the collision body
     sprite.setOffset(
-      config.frameWidth * (config.scale || 2) * 0.125,
-      config.frameHeight * (config.scale || 2) * 0.125,
+      config.frameWidth * scale * 0.125,
+      config.frameHeight * scale * 0.125,
     );
 
-    // Add collision with player
+    // Make animal immovable (won't move on collision)
+    sprite.setImmovable(true);
+    // Also prevent player from pushing the animal
+    sprite.body.setCollideWorldBounds(false);
+
+    // Add collision with player - both stay still
     if (this.player) {
-      this.scene.physics.add.collider(sprite, this.player.getSprite());
+      this.scene.physics.add.collider(sprite, this.player.getSprite(), () => {
+        // On collision, stop both from moving
+        sprite.body.setVelocity(0, 0);
+        this.player?.getSprite().body.setVelocity(0, 0);
+      });
     }
 
     // Add collision with world layer
@@ -313,13 +342,23 @@ export class AnimalSystem {
       this.animationConfigs.set(config.key, animationConfig);
     }
 
+    // Initialize HP
+    const maxHp = config.maxHp || 1;
+
+    // Create progress bar for HP
+    const progressBar = this.createProgressBar(sprite, maxHp, maxHp);
+
     // Create animal data
     const animalData: AnimalData = {
       sprite,
       config,
-      currentDirection: undefined,
       animationTimer: undefined,
       animationConfig,
+      currentHp: maxHp,
+      maxHp,
+      isDead: false,
+      isPlayingTriggeredAnimation: false,
+      progressBar,
     };
 
     // Play initial animation immediately
@@ -339,23 +378,31 @@ export class AnimalSystem {
 
   /**
    * Select animal animation based on weighted random distribution
+   * Only selects from idle and behavioral animations (not triggered)
    */
   private selectAnimalAnimation(animalData: AnimalData): void {
+    // Don't change animation if dead or playing triggered animation
+    if (animalData.isDead || animalData.isPlayingTriggeredAnimation) {
+      return;
+    }
+
     const animConfig = animalData.animationConfig;
 
-    // Build array of all animations (idle + transitions) with their weights
+    // Build array of animations (idle + behavioral transitions only)
     const allAnimations: Array<{ config: AnimationConfig; name: string }> = [
       { config: animConfig.idle, name: animConfig.idle.name },
     ];
 
-    // Add all transitions with their names from the config
+    // Add only behavioral transitions
     animalData.config.animations.transitions.forEach((transition, index) => {
-      const transitionConfig = animConfig.transitions[index];
-      if (transitionConfig) {
-        allAnimations.push({
-          config: transitionConfig,
-          name: transition.name,
-        });
+      if (transition.type === "behavioral") {
+        const transitionConfig = animConfig.transitions[index];
+        if (transitionConfig) {
+          allAnimations.push({
+            config: transitionConfig,
+            name: transition.name,
+          });
+        }
       }
     });
 
@@ -406,34 +453,259 @@ export class AnimalSystem {
     // Play the new animation
     animalData.sprite.play(animationKey, true);
 
-    // Set movement direction if moving
-    if (selectedAnimation.config.isMoving) {
-      // Random direction for movement
-      const angle = Math.random() * Math.PI * 2;
-      animalData.currentDirection = {
-        x: Math.cos(angle) * this.MOVEMENT_SPEED,
-        y: Math.sin(angle) * this.MOVEMENT_SPEED,
-      };
-    } else {
-      // Stop movement for idle
-      animalData.currentDirection = undefined;
-      animalData.sprite.body.setVelocity(0, 0);
+    // Ensure sprite doesn't move (animals stay in place)
+    animalData.sprite.body.setVelocity(0, 0);
+  }
+
+  /**
+   * Play a triggered animation (hit, death, etc.)
+   */
+  private playTriggeredAnimation(
+    animalData: AnimalData,
+    animationName: string,
+  ): void {
+    const animationKey = `${animalData.config.key}-${animationName}`;
+
+    if (!this.scene.anims.exists(animationKey)) {
+      console.warn(`Animation ${animationKey} does not exist`);
+      return;
+    }
+
+    animalData.isPlayingTriggeredAnimation = true;
+
+    // Stop any current animation
+    if (animalData.sprite.anims) {
+      animalData.sprite.anims.stop();
+    }
+
+    // Play the triggered animation
+    animalData.sprite.play(animationKey, false); // Play once, don't repeat
+
+    // Listen for animation complete
+    animalData.sprite.once("animationcomplete", () => {
+      animalData.isPlayingTriggeredAnimation = false;
+      // Return to idle or behavioral animation
+      if (!animalData.isDead) {
+        this.selectAnimalAnimation(animalData);
+      }
+    });
+  }
+
+  /**
+   * Check if player is near any animal (for interaction)
+   */
+  public checkAnimalProximity(): AnimalData | null {
+    if (!this.player) return null;
+
+    const playerPos = this.player.getPosition();
+
+    for (const animal of this.animals) {
+      if (animal.isDead) continue;
+
+      const distance = Phaser.Math.Distance.Between(
+        playerPos.x,
+        playerPos.y,
+        animal.sprite.x,
+        animal.sprite.y,
+      );
+
+      if (distance <= this.INTERACTION_DISTANCE) {
+        return animal;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Hit an animal (trigger hit animation and decrease HP)
+   */
+  public hitAnimal(animalData: AnimalData): void {
+    if (animalData.isDead) return;
+
+    // Decrease HP
+    animalData.currentHp -= 1;
+
+    // Update progress bar
+    this.updateProgressBar(animalData);
+
+    // Play hit animation
+    this.playTriggeredAnimation(animalData, "hit");
+
+    // Check if animal should die
+    if (animalData.currentHp <= 0) {
+      this.killAnimal(animalData);
     }
   }
 
   /**
-   * Update all animals movement based on current animations
+   * Kill an animal (trigger death animation, remove after delay, add items)
+   */
+  private killAnimal(animalData: AnimalData): void {
+    if (animalData.isDead) return;
+
+    animalData.isDead = true;
+
+    // Stop animation timer
+    if (animalData.animationTimer) {
+      animalData.animationTimer.remove();
+      animalData.animationTimer = undefined;
+    }
+
+    // Play death animation
+    this.playTriggeredAnimation(animalData, "death");
+
+    // Remove animal after delay
+    this.scene.time.delayedCall(this.DEATH_DISAPPEAR_DELAY, () => {
+      // Callback to add items to inventory
+      if (this.onAnimalKilled) {
+        this.onAnimalKilled(animalData.config.key);
+      }
+
+      // Emit notification for bone collection
+      gameEventBus.emit("notification:item-collected", {
+        itemId: "bone",
+        quantity: 1,
+      });
+
+      // Clean up progress bar
+      if (animalData.progressBar) {
+        animalData.progressBar.destroy();
+      }
+
+      // Remove from array and destroy sprite
+      const index = this.animals.indexOf(animalData);
+      if (index > -1) {
+        this.animals.splice(index, 1);
+      }
+      animalData.sprite.destroy();
+    });
+  }
+
+  /**
+   * Create progress bar for animal HP
+   */
+  private createProgressBar(
+    sprite: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody,
+    currentHp: number,
+    maxHp: number,
+  ): Phaser.GameObjects.Container {
+    const barWidth = 32; // Width of progress bar
+    const barHeight = 4;
+    const padding = 2;
+
+    const progressBarContainer = this.scene.add.container(
+      sprite.x,
+      sprite.y - sprite.height / 2 - 8,
+    );
+    progressBarContainer.setDepth(20); // Above tiles but below player
+    progressBarContainer.setVisible(false); // Hidden by default, shown when in proximity
+
+    // Background (black)
+    const background = this.scene.add.rectangle(
+      0,
+      0,
+      barWidth + padding * 2,
+      barHeight + padding * 2,
+      0x000000,
+      0.9,
+    );
+    background.setStrokeStyle(1, 0x333333, 1);
+    progressBarContainer.add(background);
+
+    // Foreground (red) - shows remaining HP
+    const foreground = this.scene.add.rectangle(
+      -barWidth / 2 + padding,
+      0,
+      barWidth - padding * 2,
+      barHeight,
+      0xff0000,
+      1,
+    );
+    foreground.setOrigin(0, 0.5);
+    progressBarContainer.add(foreground);
+
+    // Store reference to foreground for updates
+    (
+      progressBarContainer as Phaser.GameObjects.Container & {
+        foregroundBar?: Phaser.GameObjects.Rectangle;
+      }
+    ).foregroundBar = foreground;
+
+    // Update initial width
+    this.updateProgressBarWidth(progressBarContainer, currentHp, maxHp);
+
+    return progressBarContainer;
+  }
+
+  /**
+   * Update progress bar width based on HP
+   */
+  private updateProgressBarWidth(
+    progressBar: Phaser.GameObjects.Container,
+    currentHp: number,
+    maxHp: number,
+  ): void {
+    const foregroundBar = (
+      progressBar as Phaser.GameObjects.Container & {
+        foregroundBar?: Phaser.GameObjects.Rectangle;
+      }
+    ).foregroundBar;
+
+    if (foregroundBar) {
+      const barWidth = 32;
+      const padding = 2;
+      const maxWidth = barWidth - padding * 2;
+      const hpPercentage = Math.max(0, currentHp / maxHp);
+      const currentWidth = hpPercentage * maxWidth;
+
+      foregroundBar.setSize(Math.max(0, currentWidth), 4);
+    }
+  }
+
+  /**
+   * Update progress bar for an animal
+   */
+  private updateProgressBar(animalData: AnimalData): void {
+    if (animalData.progressBar && !animalData.isDead) {
+      this.updateProgressBarWidth(
+        animalData.progressBar,
+        animalData.currentHp,
+        animalData.maxHp,
+      );
+    }
+  }
+
+  /**
+   * Update all animals
    * Should be called in the scene's update loop
+   * Note: Animals don't move, they only animate in place
    */
   public update(): void {
+    if (!this.player) return;
+
+    const playerPos = this.player.getPosition();
+
+    // Update progress bars visibility and position for all animals
     this.animals.forEach((animalData) => {
-      // Apply movement if direction is set (moving animation)
-      if (animalData.currentDirection) {
-        animalData.sprite.body.setVelocity(
-          animalData.currentDirection.x,
-          animalData.currentDirection.y,
-        );
-      }
+      if (animalData.isDead || !animalData.progressBar) return;
+
+      // Update progress bar position to follow sprite
+      animalData.progressBar.setPosition(
+        animalData.sprite.x,
+        animalData.sprite.y - animalData.sprite.height / 2 - 8,
+      );
+
+      // Check if player is in proximity
+      const distance = Phaser.Math.Distance.Between(
+        playerPos.x,
+        playerPos.y,
+        animalData.sprite.x,
+        animalData.sprite.y,
+      );
+
+      // Show progress bar when player is close (same distance as interaction)
+      animalData.progressBar.setVisible(distance <= this.INTERACTION_DISTANCE);
     });
   }
 
@@ -444,6 +716,9 @@ export class AnimalSystem {
     this.animals.forEach((animal) => {
       if (animal.animationTimer) {
         animal.animationTimer.remove();
+      }
+      if (animal.progressBar) {
+        animal.progressBar.destroy();
       }
       if (animal.sprite) {
         animal.sprite.destroy();

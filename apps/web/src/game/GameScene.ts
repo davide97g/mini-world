@@ -320,12 +320,26 @@ export class GameScene extends Phaser.Scene {
     this.animalSystem = new AnimalSystem(this);
     this.animalSystem.init(this.gameMap, this.worldLayer, this.player);
     this.animalSystem.createAllAnimations();
+    this.animalSystem.setOnAnimalKilled(() => {
+      // When animal dies, add bone to inventory
+      if (this.inventorySystem) {
+        this.inventorySystem.addItem("bone", 1);
+      }
+    });
 
     // Spawn animals - currently only bunnies
     this.animalSystem.spawnAnimals([
       {
         animalKey: "miniBunny",
         quantity: 30,
+      },
+      {
+        animalKey: "miniBoar",
+        quantity: 100,
+      },
+      {
+        animalKey: "miniDeer1",
+        quantity: 100,
       },
     ]);
   }
@@ -907,6 +921,15 @@ export class GameScene extends Phaser.Scene {
         return;
       }
 
+      // First check for animal interaction
+      const nearbyAnimal = this.animalSystem?.checkAnimalProximity();
+      if (nearbyAnimal) {
+        this.animalSystem?.hitAnimal(nearbyAnimal);
+        this.audioSystem?.playHitSound();
+        return;
+      }
+
+      // Then check for tile collection
       const collectableData = this.collectionSystem?.checkTileProximity();
       if (
         collectableData &&
