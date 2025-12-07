@@ -147,6 +147,9 @@ export class NoAnimalsScene extends Phaser.Scene {
   }
 
   create(): void {
+    // Reset transition flag when scene is created/restarted
+    this.isTransitioning = false;
+
     const map = this.make.tilemap({ key: "no-animals-map" });
     this.gameMap = map;
 
@@ -209,13 +212,22 @@ export class NoAnimalsScene extends Phaser.Scene {
       aboveLayer.setDepth(10);
     }
 
-    const spawnPoint = map.findObject(
+    // Try to find spawn point, fall back to stairs spawn point if not found
+    let spawnPoint = map.findObject(
       "Objects",
       (obj) => obj.name === "Spawn Point",
     );
 
     if (!spawnPoint) {
-      console.error("Spawn point not found in map");
+      // Fall back to stairs spawn point if regular spawn point doesn't exist
+      spawnPoint = map.findObject(
+        "Objects",
+        (obj) => obj.name === "Stairs Spawn Point",
+      );
+    }
+
+    if (!spawnPoint) {
+      console.error("Spawn Point or Stairs Spawn Point not found in map");
       return;
     }
 
@@ -239,10 +251,18 @@ export class NoAnimalsScene extends Phaser.Scene {
         }
       | undefined;
 
-    // Always use spawn point when transitioning from another scene
-    // Otherwise, use spawn point as default (will be overridden by saved position if available)
-    const spawnX = spawnPoint.x ?? 0;
-    const spawnY = spawnPoint.y ?? 0;
+    // Determine spawn position
+    let spawnX = spawnPoint.x ?? 0;
+    let spawnY = spawnPoint.y ?? 0;
+
+    // If coming from another scene, use stairs spawn point
+    if (initData?.fromScene) {
+      const stairsSpawnPoint = this.findStairsSpawnPoint();
+      if (stairsSpawnPoint) {
+        spawnX = stairsSpawnPoint.x ?? spawnX;
+        spawnY = stairsSpawnPoint.y ?? spawnY;
+      }
+    }
 
     this.player = new Player(
       this,
@@ -255,6 +275,10 @@ export class NoAnimalsScene extends Phaser.Scene {
         right: { isDown: false },
       },
     );
+
+    // Set gameMap and worldLayer for stairs detection
+    this.player.setGameMap(this.gameMap);
+    this.player.setWorldLayer(this.worldLayer);
 
     // Handle fade in if coming from another scene
     if (initData?.fromScene) {
@@ -405,7 +429,10 @@ export class NoAnimalsScene extends Phaser.Scene {
       ) {
         return;
       }
-      this.transitionToScene("GameScene");
+      // Debug key - only works if player is at stairs spawn point
+      if (this.isPlayerAtStairsSpawnPoint()) {
+        this.handleSceneTransition("GameScene");
+      }
     });
 
     // Check for stairs interaction
@@ -417,7 +444,47 @@ export class NoAnimalsScene extends Phaser.Scene {
   }
 
   /**
-   * Check if player is on stairs and trigger transition
+   * Find stairs spawn point in the current map
+   */
+  private findStairsSpawnPoint(): Phaser.Types.Tilemaps.TiledObject | null {
+    if (!this.gameMap) return null;
+
+    const stairsSpawnPoint = this.gameMap.findObject(
+      "Objects",
+      (obj) => obj.name === "Stairs Spawn Point",
+    );
+
+    return stairsSpawnPoint || null;
+  }
+
+  /**
+   * Check if player is at the stairs spawn point location
+   */
+  private isPlayerAtStairsSpawnPoint(): boolean {
+    if (!this.player || !this.gameMap) return false;
+
+    const stairsSpawnPoint = this.findStairsSpawnPoint();
+    if (
+      !stairsSpawnPoint ||
+      stairsSpawnPoint.x === undefined ||
+      stairsSpawnPoint.y === undefined
+    ) {
+      return false;
+    }
+
+    const playerPos = this.player.getPosition();
+    const proximityDistance = 32; // pixels - allow some tolerance
+
+    const distance = Math.sqrt(
+      (playerPos.x - stairsSpawnPoint.x) ** 2 +
+        (playerPos.y - stairsSpawnPoint.y) ** 2,
+    );
+
+    return distance <= proximityDistance;
+  }
+
+  /**
+   * Check if player is on stairs tile and at stairs spawn point, then trigger transition
    */
   private checkStairsProximity = (): void => {
     if (
@@ -426,6 +493,11 @@ export class NoAnimalsScene extends Phaser.Scene {
       !this.worldLayer ||
       this.isTransitioning
     ) {
+      return;
+    }
+
+    // First check if player is at the stairs spawn point location
+    if (!this.isPlayerAtStairsSpawnPoint()) {
       return;
     }
 
@@ -456,26 +528,46 @@ export class NoAnimalsScene extends Phaser.Scene {
     const isMovingUp =
       this.cursors?.up.isDown || this.virtualCursors?.up.isDown;
 
+    // Trigger transition only if at stairs spawn point, on stairs tile, and moving up
     if ((isStairsTile || hasStairsProperty) && isMovingUp) {
-      this.transitionToScene("GameScene");
+      this.handleSceneTransition("GameScene");
     }
   };
 
   /**
-   * Transition to another scene with fade effect
+   * Handle scene transition - isolated logic for scene changes
+   * Only triggers when player is at stairs spawn point
    */
-  private transitionToScene(sceneKey: string): void {
+  private handleSceneTransition(targetSceneKey: string): void {
     if (this.isTransitioning) return;
+
+    // Double-check that player is at stairs spawn point before transitioning
+    if (!this.isPlayerAtStairsSpawnPoint()) {
+      return;
+    }
 
     this.isTransitioning = true;
 
     // Save current state before transitioning
     this.saveGameState();
 
-    // Get player position to pass to next scene
-    const playerPos = this.player?.getPosition() || { x: 0, y: 0 };
+    // Get player direction for the transition
     const playerDirection = this.player?.getDirection() || "down";
 
+    // Execute the transition (target scene will use its own stairs spawn point)
+    this.executeSceneTransition(targetSceneKey, 0, 0, playerDirection);
+  }
+
+  /**
+   * Execute the actual scene transition with fade effect
+   * Target scene will use its own stairs spawn point when fromScene is set
+   */
+  private executeSceneTransition(
+    sceneKey: string,
+    spawnX: number,
+    spawnY: number,
+    playerDirection: string,
+  ): void {
     // Fade out (0.33s)
     this.cameras.main.fadeOut(333, 0, 0, 0);
 
@@ -485,9 +577,10 @@ export class NoAnimalsScene extends Phaser.Scene {
         // Keep black screen (0.34s)
         this.time.delayedCall(340, () => {
           // Start next scene with fade in
+          // Target scene will detect fromScene and use its own stairs spawn point
           this.scene.start(sceneKey, {
-            playerX: playerPos.x,
-            playerY: playerPos.y,
+            playerX: spawnX,
+            playerY: spawnY,
             playerDirection,
             fromScene: this.scene.key,
           });
@@ -577,7 +670,7 @@ export class NoAnimalsScene extends Phaser.Scene {
       layer: "world" | "above";
     }> = [];
 
-    if (this.worldLayer) {
+    if (this.worldLayer && this.gameMap) {
       for (let y = 0; y < this.gameMap.height; y += 1) {
         for (let x = 0; x < this.gameMap.width; x += 1) {
           const tile = this.worldLayer.getTileAt(x, y);
@@ -588,7 +681,7 @@ export class NoAnimalsScene extends Phaser.Scene {
       }
     }
 
-    if (this.aboveLayer) {
+    if (this.aboveLayer && this.gameMap) {
       for (let y = 0; y < this.gameMap.height; y += 1) {
         for (let x = 0; x < this.gameMap.width; x += 1) {
           const tile = this.aboveLayer.getTileAt(x, y);
@@ -611,15 +704,32 @@ export class NoAnimalsScene extends Phaser.Scene {
       lastPlayedAt: Date.now(),
       totalPlayTime: existingSave?.totalPlayTime || 0,
       sessionStartTime: existingSave?.sessionStartTime,
+      // Scene-specific position for NoAnimalsScene
+      noAnimalsScenePosition: {
+        x: playerPos.x,
+        y: playerPos.y,
+        direction: playerDirection,
+      },
+      // Legacy position for backward compatibility
       playerPosition: {
         x: playerPos.x,
         y: playerPos.y,
         direction: playerDirection,
       },
       inventory,
+      // Scene-specific state for NoAnimalsScene
+      noAnimalsSceneState: {
+        tileCollectionCounts,
+        modifiedTiles,
+        hiddenTiles,
+      },
+      // Legacy state for backward compatibility
       tileCollectionCounts,
       modifiedTiles,
       hiddenTiles,
+      // Preserve GameScene state if it exists
+      gameScenePosition: existingSave?.gameScenePosition,
+      gameSceneState: existingSave?.gameSceneState,
       musicVolume: this.audioSystem?.getMusicVolumeForSave() || 0.5,
       isMuted: this.audioSystem?.getMutedStateForSave() || false,
       energy,
@@ -646,24 +756,41 @@ export class NoAnimalsScene extends Phaser.Scene {
 
     debugLog("Loading game state for world:", saveData.worldName);
 
+    // Use scene-specific position if available, otherwise fall back to legacy
+    const scenePosition =
+      saveData.noAnimalsScenePosition || saveData.playerPosition;
+
+    // Use scene-specific state if available, otherwise fall back to legacy
+    const sceneState = saveData.noAnimalsSceneState || {
+      tileCollectionCounts: saveData.tileCollectionCounts,
+      modifiedTiles: saveData.modifiedTiles,
+      hiddenTiles: saveData.hiddenTiles,
+    };
+
     // Load player position
-    if (this.player && saveData.playerPosition) {
-      let x = saveData.playerPosition.x;
-      let y = saveData.playerPosition.y;
+    if (this.player && scenePosition) {
+      let x = scenePosition.x;
+      let y = scenePosition.y;
 
       // If it's a new game, use spawn point
       const isNewGame =
-        x === 0 &&
-        y === 0 &&
+        (!scenePosition || (x === 0 && y === 0)) &&
         Object.keys(saveData.inventory).length === 0 &&
-        saveData.modifiedTiles.length === 0 &&
-        saveData.hiddenTiles.length === 0;
+        sceneState.modifiedTiles.length === 0 &&
+        sceneState.hiddenTiles.length === 0;
 
       if (isNewGame && this.gameMap) {
-        const spawnPoint = this.gameMap.findObject(
+        let spawnPoint = this.gameMap.findObject(
           "Objects",
           (obj) => obj.name === "Spawn Point",
         );
+        // Fall back to stairs spawn point if regular spawn point doesn't exist
+        if (!spawnPoint) {
+          spawnPoint = this.gameMap.findObject(
+            "Objects",
+            (obj) => obj.name === "Stairs Spawn Point",
+          );
+        }
         if (spawnPoint) {
           x = spawnPoint.x ?? 0;
           y = spawnPoint.y ?? 0;
@@ -678,21 +805,21 @@ export class NoAnimalsScene extends Phaser.Scene {
       this.inventorySystem.loadInventoryData(saveData.inventory);
     }
 
-    // Load tile collection counts
-    if (saveData.tileCollectionCounts && this.collectionSystem) {
+    // Load tile collection counts from scene-specific state
+    if (sceneState.tileCollectionCounts && this.collectionSystem) {
       this.collectionSystem.loadTileCollectionCounts(
-        saveData.tileCollectionCounts,
+        sceneState.tileCollectionCounts,
       );
     }
 
     // Restore modified tiles
-    if (saveData.modifiedTiles && this.tileManagementSystem) {
-      this.tileManagementSystem.loadPlacedTiles(saveData.modifiedTiles);
+    if (sceneState.modifiedTiles && this.tileManagementSystem) {
+      this.tileManagementSystem.loadPlacedTiles(sceneState.modifiedTiles);
     }
 
     // Restore hidden tiles
-    if (saveData.hiddenTiles) {
-      saveData.hiddenTiles.forEach((tileData) => {
+    if (sceneState.hiddenTiles) {
+      sceneState.hiddenTiles.forEach((tileData) => {
         const layer =
           "layer" in tileData && tileData.layer === "above"
             ? this.aboveLayer

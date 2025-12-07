@@ -423,6 +423,17 @@
           "width": 0,
           "x": 504.998400962356,
           "y": 408.729021623047
+        },
+        {
+          "height": 32,
+          "id": 286,
+          "name": "Stairs Spawn Point",
+          "rotation": 0,
+          "type": "",
+          "visible": true,
+          "width": 64,
+          "x": 640,
+          "y": 0
         }
       ],
       "opacity": 1,
@@ -433,7 +444,7 @@
     }
   ],
   "nextlayerid": 7,
-  "nextobjectid": 284,
+  "nextobjectid": 287,
   "orientation": "orthogonal",
   "properties": [
     {

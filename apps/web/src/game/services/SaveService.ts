@@ -12,7 +12,19 @@ export interface GameSaveData {
   totalPlayTime: number; // in milliseconds
   sessionStartTime?: number; // when current session started
 
-  // Player state
+  // Scene-specific player positions
+  gameScenePosition?: {
+    x: number;
+    y: number;
+    direction?: string;
+  };
+  noAnimalsScenePosition?: {
+    x: number;
+    y: number;
+    direction?: string;
+  };
+
+  // Legacy player position (for backward compatibility)
   playerPosition: {
     x: number;
     y: number;
@@ -22,7 +34,37 @@ export interface GameSaveData {
   // Inventory state
   inventory: Record<string, number>; // itemId -> quantity
 
-  // Map state
+  // Scene-specific map state
+  gameSceneState?: {
+    tileCollectionCounts: Record<string, number>; // "tileX,tileY" -> count
+    modifiedTiles: Array<{
+      x: number;
+      y: number;
+      gid: number;
+      collides: boolean;
+    }>;
+    hiddenTiles: Array<{
+      x: number;
+      y: number;
+      layer?: "world" | "above";
+    }>;
+  };
+  noAnimalsSceneState?: {
+    tileCollectionCounts: Record<string, number>;
+    modifiedTiles: Array<{
+      x: number;
+      y: number;
+      gid: number;
+      collides: boolean;
+    }>;
+    hiddenTiles: Array<{
+      x: number;
+      y: number;
+      layer?: "world" | "above";
+    }>;
+  };
+
+  // Legacy map state (for backward compatibility)
   tileCollectionCounts: Record<string, number>; // "tileX,tileY" -> count
   modifiedTiles: Array<{
     x: number;
@@ -181,6 +223,16 @@ export const createWorld = (worldName: string): string => {
     tileCollectionCounts: {},
     modifiedTiles: [],
     hiddenTiles: [],
+    gameSceneState: {
+      tileCollectionCounts: {},
+      modifiedTiles: [],
+      hiddenTiles: [],
+    },
+    noAnimalsSceneState: {
+      tileCollectionCounts: {},
+      modifiedTiles: [],
+      hiddenTiles: [],
+    },
     musicVolume: 0.5,
     isMuted: false,
     energy: 0,

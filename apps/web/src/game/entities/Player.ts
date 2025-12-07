@@ -1,5 +1,6 @@
 import type Phaser from "phaser";
 import { PLAYER_SPEED } from "../config/GameConstants";
+import { getTileProperty } from "../utils/TileUtils";
 
 // Type for cursor keys (supports both Phaser and virtual cursor keys)
 type CursorKeys =
@@ -22,6 +23,8 @@ export class Player {
   private lastSentDirection?: string;
   private positionUpdateThrottle: number = 100; // Send updates every 100ms
   private lastUpdateTime: number = 0;
+  private gameMap?: Phaser.Tilemaps.Tilemap | null;
+  private worldLayer?: Phaser.Tilemaps.TilemapLayer;
 
   constructor(scene: Phaser.Scene, x: number, y: number, cursors: CursorKeys) {
     this.scene = scene;
@@ -90,6 +93,40 @@ export class Player {
     return this.sprite;
   }
 
+  public setGameMap(gameMap: Phaser.Tilemaps.Tilemap | null): void {
+    this.gameMap = gameMap;
+  }
+
+  public setWorldLayer(
+    worldLayer: Phaser.Tilemaps.TilemapLayer | undefined,
+  ): void {
+    this.worldLayer = worldLayer;
+  }
+
+  /**
+   * Check if the player is currently on a horizontal stairs tile
+   */
+  private isOnHorizontalStairs(): boolean {
+    if (!this.gameMap || !this.worldLayer) return false;
+
+    const playerPos = this.getPosition();
+    const tileWidth = this.gameMap.tileWidth || 32;
+    const tileHeight = this.gameMap.tileHeight || 32;
+
+    // Get the tile the player is on
+    const tileX = Math.floor(playerPos.x / tileWidth);
+    const tileY = Math.floor(playerPos.y / tileHeight);
+
+    const tile = this.worldLayer.getTileAt(tileX, tileY);
+    if (!tile || tile.index === null || tile.index === -1) {
+      return false;
+    }
+
+    // Check if tile has "stairs" property set to "horizontal"
+    const stairsProperty = getTileProperty(tile, "stairs");
+    return stairsProperty === "horizontal";
+  }
+
   public update(): void {
     if (!this.cursors) return;
 
@@ -98,47 +135,90 @@ export class Player {
     // Stop any previous movement from the last frame
     this.sprite.body.setVelocity(0);
 
-    // Horizontal movement
-    if (this.cursors.left.isDown) {
-      this.sprite.body.setVelocityX(-PLAYER_SPEED);
-    } else if (this.cursors.right.isDown) {
-      this.sprite.body.setVelocityX(PLAYER_SPEED);
-    }
+    const isOnHorizontalStairs = this.isOnHorizontalStairs();
 
-    // Vertical movement
-    if (this.cursors.up.isDown) {
-      this.sprite.body.setVelocityY(-PLAYER_SPEED);
-    } else if (this.cursors.down.isDown) {
-      this.sprite.body.setVelocityY(PLAYER_SPEED);
+    // Handle horizontal stairs movement
+    if (isOnHorizontalStairs) {
+      // On horizontal stairs, left/right movement becomes up/down movement
+      if (this.cursors.left.isDown) {
+        // Moving left on horizontal stairs = moving up
+        this.sprite.body.setVelocityY(-PLAYER_SPEED);
+      } else if (this.cursors.right.isDown) {
+        // Moving right on horizontal stairs = moving down
+        this.sprite.body.setVelocityY(PLAYER_SPEED);
+      }
+
+      // Still allow vertical movement on stairs (for going up/down directly)
+      if (this.cursors.up.isDown) {
+        this.sprite.body.setVelocityY(-PLAYER_SPEED);
+      } else if (this.cursors.down.isDown) {
+        this.sprite.body.setVelocityY(PLAYER_SPEED);
+      }
+    } else {
+      // Normal movement when not on horizontal stairs
+      // Horizontal movement
+      if (this.cursors.left.isDown) {
+        this.sprite.body.setVelocityX(-PLAYER_SPEED);
+      } else if (this.cursors.right.isDown) {
+        this.sprite.body.setVelocityX(PLAYER_SPEED);
+      }
+
+      // Vertical movement
+      if (this.cursors.up.isDown) {
+        this.sprite.body.setVelocityY(-PLAYER_SPEED);
+      } else if (this.cursors.down.isDown) {
+        this.sprite.body.setVelocityY(PLAYER_SPEED);
+      }
     }
 
     // Normalize and scale the velocity so that player can't move faster along a diagonal
     this.sprite.body.velocity.normalize().scale(PLAYER_SPEED);
 
     // Update the animation and direction
-    if (this.cursors.left.isDown) {
-      this.sprite.anims.play("misa-left-walk", true);
-      this.currentDirection = "left";
-    } else if (this.cursors.right.isDown) {
-      this.sprite.anims.play("misa-right-walk", true);
-      this.currentDirection = "right";
-    } else if (this.cursors.up.isDown) {
-      this.sprite.anims.play("misa-back-walk", true);
-      this.currentDirection = "up";
-    } else if (this.cursors.down.isDown) {
-      this.sprite.anims.play("misa-front-walk", true);
-      this.currentDirection = "down";
-    } else {
-      this.sprite.anims.stop();
-      this.currentDirection = undefined;
+    // On horizontal stairs, prioritize vertical movement for animation
+    if (isOnHorizontalStairs) {
+      if (this.cursors.left.isDown || this.cursors.up.isDown) {
+        this.sprite.anims.play("misa-back-walk", true);
+        this.currentDirection = "up";
+      } else if (this.cursors.right.isDown || this.cursors.down.isDown) {
+        this.sprite.anims.play("misa-front-walk", true);
+        this.currentDirection = "down";
+      } else {
+        this.sprite.anims.stop();
+        this.currentDirection = undefined;
 
-      // If we were moving, pick an idle frame to use
-      if (prevVelocity.x < 0) this.sprite.setTexture("atlas", "misa-left");
-      else if (prevVelocity.x > 0)
-        this.sprite.setTexture("atlas", "misa-right");
-      else if (prevVelocity.y < 0) this.sprite.setTexture("atlas", "misa-back");
-      else if (prevVelocity.y > 0)
-        this.sprite.setTexture("atlas", "misa-front");
+        // If we were moving, pick an idle frame to use
+        if (prevVelocity.y < 0) this.sprite.setTexture("atlas", "misa-back");
+        else if (prevVelocity.y > 0)
+          this.sprite.setTexture("atlas", "misa-front");
+      }
+    } else {
+      // Normal animation when not on horizontal stairs
+      if (this.cursors.left.isDown) {
+        this.sprite.anims.play("misa-left-walk", true);
+        this.currentDirection = "left";
+      } else if (this.cursors.right.isDown) {
+        this.sprite.anims.play("misa-right-walk", true);
+        this.currentDirection = "right";
+      } else if (this.cursors.up.isDown) {
+        this.sprite.anims.play("misa-back-walk", true);
+        this.currentDirection = "up";
+      } else if (this.cursors.down.isDown) {
+        this.sprite.anims.play("misa-front-walk", true);
+        this.currentDirection = "down";
+      } else {
+        this.sprite.anims.stop();
+        this.currentDirection = undefined;
+
+        // If we were moving, pick an idle frame to use
+        if (prevVelocity.x < 0) this.sprite.setTexture("atlas", "misa-left");
+        else if (prevVelocity.x > 0)
+          this.sprite.setTexture("atlas", "misa-right");
+        else if (prevVelocity.y < 0)
+          this.sprite.setTexture("atlas", "misa-back");
+        else if (prevVelocity.y > 0)
+          this.sprite.setTexture("atlas", "misa-front");
+      }
     }
 
     // Send position updates to multiplayer service (throttled)
