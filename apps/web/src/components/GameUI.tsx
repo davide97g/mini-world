@@ -3,6 +3,7 @@ import packageJson from "../../package.json";
 import { type InventoryItem, ITEM_TYPES } from "../game/config/GameConstants";
 import { gameEventBus } from "../game/utils/GameEventBus";
 import MobileControls from "./MobileControls";
+import ActionSuggestionUI from "./ui/ActionSuggestionUI";
 import ChatUI from "./ui/ChatUI";
 import CraftingUI from "./ui/CraftingUI";
 import DialogUI from "./ui/DialogUI";
@@ -42,6 +43,10 @@ const GameUI = ({ worldId }: GameUIProps) => {
     energyPerMinute: 0,
     maxEnergyPerMinute: 10,
   });
+  const [actionSuggestion, setActionSuggestion] = useState<{
+    action: string;
+    key: string;
+  } | null>(null);
 
   // Initialize inventory from ITEM_TYPES
   useEffect(() => {
@@ -269,6 +274,26 @@ const GameUI = ({ worldId }: GameUIProps) => {
       }
     };
 
+    const handleActionAvailable = (payload?: unknown) => {
+      if (
+        payload &&
+        typeof payload === "object" &&
+        "action" in payload &&
+        "key" in payload &&
+        typeof payload.action === "string" &&
+        typeof payload.key === "string"
+      ) {
+        setActionSuggestion({
+          action: payload.action,
+          key: payload.key,
+        });
+      }
+    };
+
+    const handleActionUnavailable = () => {
+      setActionSuggestion(null);
+    };
+
     // Subscribe to events
     const unsubscribers = [
       gameEventBus.on("inventory:toggle", handleInventoryToggle),
@@ -295,6 +320,8 @@ const GameUI = ({ worldId }: GameUIProps) => {
       gameEventBus.on("crafting:open", handleCraftingOpen),
       gameEventBus.on("crafting:close", handleCraftingClose),
       gameEventBus.on("energy:update", handleEnergyUpdate),
+      gameEventBus.on("action:available", handleActionAvailable),
+      gameEventBus.on("action:unavailable", handleActionUnavailable),
     ];
 
     return () => {
@@ -392,6 +419,7 @@ const GameUI = ({ worldId }: GameUIProps) => {
       <WeatherUI />
       <WeatherNotificationUI />
       <NotificationUI notifications={notifications} />
+      <ActionSuggestionUI suggestion={actionSuggestion} />
       <MobileControls
         onDirectionChange={handleDirectionChange}
         onActionA={handleActionA}

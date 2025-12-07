@@ -45,7 +45,9 @@ export type GameEventType =
   | "crafting:craft"
   | "crafting:check"
   | "crafting:can-craft"
-  | "crafting:failure";
+  | "crafting:failure"
+  | "action:available"
+  | "action:unavailable";
 
 export interface GameEvent {
   type: GameEventType;

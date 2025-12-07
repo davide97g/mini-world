@@ -6,7 +6,11 @@
 
 import Phaser from "phaser";
 import { ANIMAL_CONFIGS, ASSET_PATHS } from "./config/AssetPaths";
-import { AUTO_SAVE_INTERVAL, MIN_SAVE_INTERVAL } from "./config/GameConstants";
+import {
+  AUTO_SAVE_INTERVAL,
+  ITEM_TYPES,
+  MIN_SAVE_INTERVAL,
+} from "./config/GameConstants";
 import { Player } from "./entities/Player";
 import {
   type GameSaveData,
@@ -1159,6 +1163,9 @@ export class GameScene extends Phaser.Scene {
     // Update weather effects
     this.weatherEffectsSystem?.update();
 
+    // Check for available actions and emit events
+    this.checkAndEmitAvailableActions();
+
     // Periodically save player position (throttled)
     const now = Date.now();
     if (now - this.lastSaveTime > MIN_SAVE_INTERVAL * 2) {
@@ -1167,6 +1174,57 @@ export class GameScene extends Phaser.Scene {
         this.saveGameState();
       }
     }
+  }
+
+  /**
+   * Check for available actions and emit events to UI
+   */
+  private checkAndEmitAvailableActions(): void {
+    if (
+      this.menuSystem?.isOpen() ||
+      this.dialogSystem?.isVisible() ||
+      this.chatSystem?.isOpen() ||
+      this.inventorySystem?.isOpen()
+    ) {
+      // Don't show actions when UI is open
+      gameEventBus.emit("action:unavailable");
+      return;
+    }
+
+    // First check for animal interaction (priority)
+    const nearbyAnimal = this.animalSystem?.checkAnimalProximity();
+    if (nearbyAnimal) {
+      const animalName = this.formatAnimalName(nearbyAnimal.config.key);
+      gameEventBus.emit("action:available", {
+        action: `hit ${animalName}`,
+        key: "x",
+      });
+      return;
+    }
+
+    // Then check for tile collection
+    const collectableData = this.collectionSystem?.checkTileProximity();
+    if (collectableData) {
+      const item = ITEM_TYPES.find((i) => i.id === collectableData.itemId);
+      const itemName = item?.name || collectableData.itemId;
+      gameEventBus.emit("action:available", {
+        action: `collect ${itemName}`,
+        key: "x",
+      });
+      return;
+    }
+
+    // No actions available
+    gameEventBus.emit("action:unavailable");
+  }
+
+  /**
+   * Format animal key to readable name (e.g., "miniBunny" -> "Bunny")
+   */
+  private formatAnimalName(animalKey: string): string {
+    // Remove "mini" prefix and capitalize first letter
+    const name = animalKey.replace(/^mini/, "");
+    return name.charAt(0).toUpperCase() + name.slice(1);
   }
 
   private setupCollectionControls(): void {

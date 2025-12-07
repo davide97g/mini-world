@@ -4,7 +4,11 @@
 
 import Phaser from "phaser";
 import { ASSET_PATHS } from "./config/AssetPaths";
-import { AUTO_SAVE_INTERVAL, MIN_SAVE_INTERVAL } from "./config/GameConstants";
+import {
+  AUTO_SAVE_INTERVAL,
+  ITEM_TYPES,
+  MIN_SAVE_INTERVAL,
+} from "./config/GameConstants";
 import { Player } from "./entities/Player";
 import {
   type GameSaveData,
@@ -1161,12 +1165,46 @@ export class NoAnimalsScene extends Phaser.Scene {
 
     this.weatherEffectsSystem?.update();
 
+    // Check for available actions and emit events
+    this.checkAndEmitAvailableActions();
+
     const now = Date.now();
     if (now - this.lastSaveTime > MIN_SAVE_INTERVAL * 2) {
       if (this.player.isMoving()) {
         this.saveGameState();
       }
     }
+  }
+
+  /**
+   * Check for available actions and emit events to UI
+   */
+  private checkAndEmitAvailableActions(): void {
+    if (
+      this.menuSystem?.isOpen() ||
+      this.dialogSystem?.isVisible() ||
+      this.chatSystem?.isOpen() ||
+      this.inventorySystem?.isOpen()
+    ) {
+      // Don't show actions when UI is open
+      gameEventBus.emit("action:unavailable");
+      return;
+    }
+
+    // Check for tile collection
+    const collectableData = this.collectionSystem?.checkTileProximity();
+    if (collectableData) {
+      const item = ITEM_TYPES.find((i) => i.id === collectableData.itemId);
+      const itemName = item?.name || collectableData.itemId;
+      gameEventBus.emit("action:available", {
+        action: `collect ${itemName}`,
+        key: "x",
+      });
+      return;
+    }
+
+    // No actions available
+    gameEventBus.emit("action:unavailable");
   }
 
   private setupCollectionControls(): void {
