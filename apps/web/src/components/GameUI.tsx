@@ -4,7 +4,9 @@ import { type InventoryItem, ITEM_TYPES } from "../game/config/GameConstants";
 import { gameEventBus } from "../game/utils/GameEventBus";
 import MobileControls from "./MobileControls";
 import ChatUI from "./ui/ChatUI";
+import CraftingUI from "./ui/CraftingUI";
 import DialogUI from "./ui/DialogUI";
+import EnergyUI from "./ui/EnergyUI";
 import InventoryBar from "./ui/InventoryBar";
 import InventoryUI from "./ui/InventoryUI";
 import MenuUI from "./ui/MenuUI";
@@ -34,6 +36,12 @@ const GameUI = ({ worldId }: GameUIProps) => {
     new Map(),
   );
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [craftingOpen, setCraftingOpen] = useState(false);
+  const [energyData, setEnergyData] = useState({
+    currentEnergy: 0,
+    energyPerMinute: 0,
+    maxEnergyPerMinute: 10,
+  });
 
   // Initialize inventory from ITEM_TYPES
   useEffect(() => {
@@ -228,6 +236,39 @@ const GameUI = ({ worldId }: GameUIProps) => {
       window.dispatchEvent(new CustomEvent("game:exit-to-world-selection"));
     };
 
+    const handleCraftingToggle = () => {
+      setCraftingOpen((prev) => !prev);
+    };
+
+    const handleCraftingOpen = () => {
+      setCraftingOpen(true);
+    };
+
+    const handleCraftingClose = () => {
+      setCraftingOpen(false);
+    };
+
+    const handleEnergyUpdate = (payload?: unknown) => {
+      if (
+        payload &&
+        typeof payload === "object" &&
+        "currentEnergy" in payload &&
+        "energyPerMinute" in payload &&
+        "maxEnergyPerMinute" in payload
+      ) {
+        const data = payload as {
+          currentEnergy: number;
+          energyPerMinute: number;
+          maxEnergyPerMinute: number;
+        };
+        setEnergyData({
+          currentEnergy: data.currentEnergy,
+          energyPerMinute: data.energyPerMinute,
+          maxEnergyPerMinute: data.maxEnergyPerMinute,
+        });
+      }
+    };
+
     // Subscribe to events
     const unsubscribers = [
       gameEventBus.on("inventory:toggle", handleInventoryToggle),
@@ -250,6 +291,10 @@ const GameUI = ({ worldId }: GameUIProps) => {
         "game:exit-to-world-selection",
         handleExitToWorldSelection,
       ),
+      gameEventBus.on("crafting:toggle", handleCraftingToggle),
+      gameEventBus.on("crafting:open", handleCraftingOpen),
+      gameEventBus.on("crafting:close", handleCraftingClose),
+      gameEventBus.on("energy:update", handleEnergyUpdate),
     ];
 
     return () => {
@@ -328,6 +373,15 @@ const GameUI = ({ worldId }: GameUIProps) => {
         nearStatue={nearStatue}
         onClose={() => {
           gameEventBus.emit("chat:close");
+        }}
+      />
+      <EnergyUI />
+      <CraftingUI
+        isOpen={craftingOpen}
+        inventory={inventory}
+        currentEnergy={energyData.currentEnergy}
+        onClose={() => {
+          gameEventBus.emit("crafting:close");
         }}
       />
       <InventoryBar

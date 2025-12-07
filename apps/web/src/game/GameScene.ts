@@ -22,8 +22,10 @@ import { AnimalSystem } from "./systems/AnimalSystem";
 import { AudioSystem } from "./systems/AudioSystem";
 import { ChatSystem } from "./systems/ChatSystem";
 import { CollectionSystem } from "./systems/CollectionSystem";
+import { CraftingSystem } from "./systems/CraftingSystem";
 import { DayNightSystem } from "./systems/DayNightSystem";
 import { DialogSystem } from "./systems/DialogSystem";
+import { EnergySystem } from "./systems/EnergySystem";
 import { InventorySystem } from "./systems/InventorySystem";
 import { LootDispersionSystem } from "./systems/LootDispersionSystem";
 import { MenuSystem } from "./systems/MenuSystem";
@@ -59,6 +61,8 @@ export class GameScene extends Phaser.Scene {
   private dayNightSystem?: DayNightSystem;
   private weatherEffectsSystem?: WeatherEffectsSystem;
   private lootDispersionSystem?: LootDispersionSystem;
+  private energySystem?: EnergySystem;
+  private craftingSystem?: CraftingSystem;
 
   // Tile info hover system
   private hoveredTileInfo: {
@@ -106,6 +110,7 @@ export class GameScene extends Phaser.Scene {
     this.dayNightSystem?.shutdown();
     this.weatherEffectsSystem?.shutdown();
     this.lootDispersionSystem?.shutdown();
+    this.energySystem?.shutdown();
 
     // Clean up tile info popup
     if (this.tileInfoPopup) {
@@ -255,6 +260,13 @@ export class GameScene extends Phaser.Scene {
     this.weatherEffectsSystem = new WeatherEffectsSystem(this);
     this.weatherEffectsSystem.init(camera, this.player, this.gameMap);
 
+    // Initialize energy system
+    this.energySystem = new EnergySystem(this);
+    this.energySystem.init(
+      () => this.getWeatherType(),
+      () => this.getTimeOfDay(),
+    );
+
     // Initialize systems
     this.initSystems();
 
@@ -271,6 +283,15 @@ export class GameScene extends Phaser.Scene {
     this.inventorySystem.setOnInventoryChange(() => {
       this.scheduleSave();
     });
+
+    // Initialize crafting system
+    if (!this.inventorySystem || !this.energySystem) {
+      console.error("Inventory or energy system not initialized for crafting");
+    } else {
+      this.craftingSystem = new CraftingSystem();
+      this.craftingSystem.init(this.inventorySystem, this.energySystem);
+      this.setupCraftingControls();
+    }
 
     // Initialize collection system
     if (!this.inventorySystem) {
@@ -338,6 +359,7 @@ export class GameScene extends Phaser.Scene {
     this.setupDebugControls();
     this.setupInputHandling();
     this.setupInventoryControls();
+    this.setupCraftingKeyboardControls();
     this.setupCollectionControls();
     this.setupTreeSpawningControls();
     this.setupTileInfoHover();
@@ -361,31 +383,58 @@ export class GameScene extends Phaser.Scene {
       this.lootDispersionSystem?.disperseLoot(loot, x, y);
     });
 
-    // Spawn animals - currently only bunnies
+    // Spawn animals - herbivores in herds, predators scattered
     this.animalSystem.spawnAnimals([
+      // Herbivores - spawn in herds
       {
         animalKey: "miniBunny",
         quantity: 100,
+        spawnAsHerd: {
+          enabled: true,
+          herdSize: 8, // 8 bunnies per herd
+          herdSpacing: 80, // Maximum 80 pixels between bunnies in a herd
+        },
       },
       {
         animalKey: "miniBoar",
         quantity: 40,
+        spawnAsHerd: {
+          enabled: true,
+          herdSize: 5, // 5 boars per herd
+          herdSpacing: 100, // Maximum 100 pixels between boars in a herd
+        },
       },
       {
         animalKey: "miniDeer1",
         quantity: 30,
+        spawnAsHerd: {
+          enabled: true,
+          herdSize: 6, // 6 deer per herd
+          herdSpacing: 120, // Maximum 120 pixels between deer in a herd
+        },
       },
       {
         animalKey: "miniDeer2",
         quantity: 30,
-      },
-      {
-        animalKey: "miniBear",
-        quantity: 10,
+        spawnAsHerd: {
+          enabled: true,
+          herdSize: 6, // 6 deer per herd
+          herdSpacing: 120, // Maximum 120 pixels between deer in a herd
+        },
       },
       {
         animalKey: "miniBird",
         quantity: 25,
+        spawnAsHerd: {
+          enabled: true,
+          herdSize: 5, // 5 birds per flock
+          herdSpacing: 60, // Maximum 60 pixels between birds in a flock
+        },
+      },
+      // Predators - spawn scattered (no herd configuration)
+      {
+        animalKey: "miniBear",
+        quantity: 10,
       },
       {
         animalKey: "miniFox",
@@ -504,6 +553,9 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    // Get energy from energy system
+    const energy = this.energySystem?.getCurrentEnergy() || 0;
+
     // Load existing save data to preserve metadata
     const existingSave = loadGame(this.currentWorldId);
     const saveData: GameSaveData = {
@@ -524,6 +576,7 @@ export class GameScene extends Phaser.Scene {
       hiddenTiles,
       musicVolume: this.audioSystem?.getMusicVolumeForSave() || 0.5,
       isMuted: this.audioSystem?.getMutedStateForSave() || false,
+      energy,
     };
 
     saveGame(saveData);
@@ -626,6 +679,12 @@ export class GameScene extends Phaser.Scene {
         saveData.musicVolume,
         saveData.isMuted,
       );
+    }
+
+    // Load energy
+    if (saveData.energy !== undefined && this.energySystem) {
+      this.energySystem.setEnergy(saveData.energy);
+      debugLog(`Loaded energy: ${saveData.energy}`);
     }
 
     debugLog("Game state loaded successfully");
@@ -1205,6 +1264,77 @@ export class GameScene extends Phaser.Scene {
         return;
       }
       this.inventorySystem?.toggleInventory();
+    });
+  }
+
+  /**
+   * Setup crafting keyboard controls
+   */
+  private setupCraftingKeyboardControls(): void {
+    const craftingKey = this.input.keyboard?.addKey(
+      Phaser.Input.Keyboard.KeyCodes.C,
+    );
+
+    craftingKey?.on("down", () => {
+      if (
+        this.chatSystem?.isOpen() ||
+        this.menuSystem?.isOpen() ||
+        this.dialogSystem?.isVisible() ||
+        this.inventorySystem?.isOpen()
+      ) {
+        return;
+      }
+      gameEventBus.emit("crafting:toggle");
+    });
+  }
+
+  /**
+   * Setup crafting system event handlers
+   */
+  private setupCraftingControls(): void {
+    // Listen for craft requests from UI
+    gameEventBus.on("crafting:craft", (payload?: unknown) => {
+      if (
+        payload &&
+        typeof payload === "object" &&
+        "recipeId" in payload &&
+        typeof payload.recipeId === "string"
+      ) {
+        const { recipeId } = payload as { recipeId: string };
+        if (this.craftingSystem) {
+          const result = this.craftingSystem.craft(recipeId);
+          if (result.success) {
+            this.scheduleSave();
+            // TODO: Play craft sound effect here
+            // Example: this.audioSystem?.playCraftSound();
+          } else {
+            // Emit failure event if needed
+            gameEventBus.emit("crafting:failure", {
+              recipeId,
+              message: result.message,
+            });
+          }
+        }
+      }
+    });
+
+    // Listen for can-craft check requests from UI
+    gameEventBus.on("crafting:check", (payload?: unknown) => {
+      if (
+        payload &&
+        typeof payload === "object" &&
+        "recipeId" in payload &&
+        typeof payload.recipeId === "string"
+      ) {
+        const { recipeId } = payload as { recipeId: string };
+        if (this.craftingSystem) {
+          const canCraft = this.craftingSystem.canCraft(recipeId);
+          gameEventBus.emit("crafting:can-craft", {
+            recipeId,
+            canCraft,
+          });
+        }
+      }
     });
   }
 }

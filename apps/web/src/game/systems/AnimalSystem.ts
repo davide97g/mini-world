@@ -94,6 +94,12 @@ export interface AnimalSpawnConfig {
     width: number;
     height: number;
   };
+  spawnAsHerd?: {
+    // Optional: spawn animals in herds (groups)
+    enabled: boolean;
+    herdSize: number; // Number of animals per herd
+    herdSpacing: number; // Maximum distance between animals in a herd (in pixels)
+  };
 }
 
 export class AnimalSystem {
@@ -284,27 +290,100 @@ export class AnimalSystem {
         return;
       }
 
-      const mapWidth = this.gameMap.widthInPixels;
-      const mapHeight = this.gameMap.heightInPixels;
-
-      for (let i = 0; i < spawnConfig.quantity; i++) {
-        let x: number;
-        let y: number;
-
-        if (spawnConfig.spawnArea) {
-          // Spawn within specific area
-          const area = spawnConfig.spawnArea;
-          x = area.x + Math.random() * area.width;
-          y = area.y + Math.random() * area.height;
-        } else {
-          // Spawn randomly within map bounds
-          x = Math.random() * mapWidth;
-          y = Math.random() * mapHeight;
-        }
-
-        this.spawnAnimal(animalConfig, x, y);
+      // Check if herd spawning is enabled
+      if (spawnConfig.spawnAsHerd?.enabled) {
+        this.spawnAnimalsAsHerd(animalConfig, spawnConfig);
+      } else {
+        // Spawn animals scattered (original behavior)
+        this.spawnAnimalsScattered(animalConfig, spawnConfig);
       }
     });
+  }
+
+  /**
+   * Spawn animals scattered across the map (original behavior)
+   */
+  private spawnAnimalsScattered(
+    animalConfig: AnimalConfig,
+    spawnConfig: AnimalSpawnConfig,
+  ): void {
+    if (!this.gameMap) return;
+
+    const mapWidth = this.gameMap.widthInPixels;
+    const mapHeight = this.gameMap.heightInPixels;
+
+    for (let i = 0; i < spawnConfig.quantity; i++) {
+      let x: number;
+      let y: number;
+
+      if (spawnConfig.spawnArea) {
+        // Spawn within specific area
+        const area = spawnConfig.spawnArea;
+        x = area.x + Math.random() * area.width;
+        y = area.y + Math.random() * area.height;
+      } else {
+        // Spawn randomly within map bounds
+        x = Math.random() * mapWidth;
+        y = Math.random() * mapHeight;
+      }
+
+      this.spawnAnimal(animalConfig, x, y);
+    }
+  }
+
+  /**
+   * Spawn animals in herds (groups)
+   */
+  private spawnAnimalsAsHerd(
+    animalConfig: AnimalConfig,
+    spawnConfig: AnimalSpawnConfig,
+  ): void {
+    if (!this.gameMap) return;
+
+    const mapWidth = this.gameMap.widthInPixels;
+    const mapHeight = this.gameMap.heightInPixels;
+    const herdSize = spawnConfig.spawnAsHerd?.herdSize || 5;
+    const herdSpacing = spawnConfig.spawnAsHerd?.herdSpacing || 100;
+    const totalAnimals = spawnConfig.quantity;
+    const numberOfHerds = Math.ceil(totalAnimals / herdSize);
+
+    for (let herdIndex = 0; herdIndex < numberOfHerds; herdIndex++) {
+      // Calculate how many animals in this herd (last herd may be smaller)
+      const animalsInHerd = Math.min(
+        herdSize,
+        totalAnimals - herdIndex * herdSize,
+      );
+
+      // Choose a center point for the herd
+      let herdCenterX: number;
+      let herdCenterY: number;
+
+      if (spawnConfig.spawnArea) {
+        // Spawn within specific area
+        const area = spawnConfig.spawnArea;
+        herdCenterX = area.x + Math.random() * area.width;
+        herdCenterY = area.y + Math.random() * area.height;
+      } else {
+        // Spawn randomly within map bounds
+        herdCenterX = Math.random() * mapWidth;
+        herdCenterY = Math.random() * mapHeight;
+      }
+
+      // Spawn animals around the center point
+      for (let i = 0; i < animalsInHerd; i++) {
+        // Generate position within herd spacing radius
+        const angle = Math.random() * Math.PI * 2; // Random angle
+        const distance = Math.random() * herdSpacing; // Random distance within spacing
+        const x = herdCenterX + Math.cos(angle) * distance;
+        const y = herdCenterY + Math.sin(angle) * distance;
+
+        // Ensure position is within map bounds
+        const clampedX = Math.max(0, Math.min(x, mapWidth));
+        const clampedY = Math.max(0, Math.min(y, mapHeight));
+
+        this.spawnAnimal(animalConfig, clampedX, clampedY);
+      }
+    }
   }
 
   /**

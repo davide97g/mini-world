@@ -35,7 +35,17 @@ export type GameEventType =
   | "audio:toggle-mute"
   | "audio:mute-state-changed"
   | "inventory:item-selected"
-  | "weather:change";
+  | "weather:change"
+  | "energy:update"
+  | "time-of-day:change"
+  | "crafting:open"
+  | "crafting:close"
+  | "crafting:toggle"
+  | "crafting:success"
+  | "crafting:craft"
+  | "crafting:check"
+  | "crafting:can-craft"
+  | "crafting:failure";
 
 export interface GameEvent {
   type: GameEventType;

@@ -3,6 +3,7 @@
  */
 
 import type Phaser from "phaser";
+import { gameEventBus } from "../utils/GameEventBus";
 
 export type TimeOfDay = "day" | "night";
 
@@ -55,6 +56,8 @@ export class DayNightSystem {
   public setTimeOfDay(time: TimeOfDay): void {
     this.timeOfDay = time;
     this.updateOverlay();
+    // Emit time of day change event
+    gameEventBus.emit("time-of-day:change", { timeOfDay: time });
   }
 
   public getTimeOfDay(): TimeOfDay {

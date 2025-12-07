@@ -53,6 +53,10 @@ export const ITEM_TYPES: InventoryItem[] = [
   { id: "plank", name: "Plank", color: 0xd2691e, quantity: 0 },
   { id: "log", name: "Log", color: 0x654321, quantity: 0 },
   { id: "coin", name: "Coin", color: 0xffd700, quantity: 0 },
+  // Craftable items
+  { id: "cooked_meat", name: "Cooked Meat", color: 0xa0522d, quantity: 0 },
+  { id: "bone_knife", name: "Bone Knife", color: 0xf5f5dc, quantity: 0 },
+  { id: "stone_brick", name: "Stone Brick", color: 0x2c3e50, quantity: 0 },
 ];
 
 export const COLLECTION_PROXIMITY_DISTANCE = 32; // pixels - distance to tile center

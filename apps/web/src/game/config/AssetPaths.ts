@@ -37,6 +37,16 @@ export const ASSET_PATHS = {
     pebble: "/assets/items/pebble.png",
     dust: "/assets/items/dust.png",
     log: "/assets/items/log.png",
+    crafting: "/assets/items/crafting.png",
+    // Crafting stations
+    workbench: "/assets/items/workbench.png",
+    cooking_fire: "/assets/items/cooking-fire.png",
+    bone_table: "/assets/items/bone-table.png",
+    stone_anvil: "/assets/items/stone-anvil.png",
+    cooked_meat: "/assets/items/cooked-meat.png",
+    // Craftable items
+    bone_knife: "/assets/items/bone.png", // Using bone image as placeholder
+    stone_brick: "/assets/items/stone_dark.png", // Using stone_dark image as placeholder
   },
   animals: {
     miniBunny: "/assets/animals/MiniBunny.png",

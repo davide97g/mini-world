@@ -39,6 +39,9 @@ export interface GameSaveData {
   // Game settings (per-world)
   musicVolume: number;
   isMuted: boolean;
+
+  // Energy state
+  energy?: number; // Current energy value
 }
 
 export interface WorldMetadata {
@@ -180,6 +183,7 @@ export const createWorld = (worldName: string): string => {
     hiddenTiles: [],
     musicVolume: 0.5,
     isMuted: false,
+    energy: 0,
   };
 
   saveGame(saveData);
