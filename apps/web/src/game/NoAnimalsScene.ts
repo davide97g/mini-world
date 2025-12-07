@@ -1,11 +1,9 @@
 /**
- * Author: Michael Hadley, mikewesthad.com
- * Asset Credits:
- *  - Tuxemon, https://github.com/Tuxemon/Tuxemon
+ * NoAnimalsScene - A scene without animals, loads no-animals.json map
  */
 
 import Phaser from "phaser";
-import { ANIMAL_CONFIGS, ASSET_PATHS } from "./config/AssetPaths";
+import { ASSET_PATHS } from "./config/AssetPaths";
 import { AUTO_SAVE_INTERVAL, MIN_SAVE_INTERVAL } from "./config/GameConstants";
 import { Player } from "./entities/Player";
 import {
@@ -18,7 +16,6 @@ import {
   stopSession,
   updatePlayTime,
 } from "./services/SaveService";
-import { AnimalSystem } from "./systems/AnimalSystem";
 import { AudioSystem } from "./systems/AudioSystem";
 import { ChatSystem } from "./systems/ChatSystem";
 import { CollectionSystem } from "./systems/CollectionSystem";
@@ -41,7 +38,7 @@ import {
 } from "./utils/MobileUtils";
 import { getTileProperty } from "./utils/TileUtils";
 
-export class GameScene extends Phaser.Scene {
+export class NoAnimalsScene extends Phaser.Scene {
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys | VirtualCursorKeys;
   private virtualCursors?: VirtualCursorKeys;
   private isMobile = false;
@@ -58,7 +55,6 @@ export class GameScene extends Phaser.Scene {
   private inventorySystem?: InventorySystem;
   private collectionSystem?: CollectionSystem;
   private tileManagementSystem?: TileManagementSystem;
-  private animalSystem?: AnimalSystem;
   private dayNightSystem?: DayNightSystem;
   private weatherEffectsSystem?: WeatherEffectsSystem;
   private lootDispersionSystem?: LootDispersionSystem;
@@ -83,7 +79,7 @@ export class GameScene extends Phaser.Scene {
   private isTransitioning = false;
 
   constructor() {
-    super({ key: "GameScene" });
+    super({ key: "NoAnimalsScene" });
   }
 
   shutdown(): void {
@@ -122,19 +118,22 @@ export class GameScene extends Phaser.Scene {
     if (this.tileInfoPopup) {
       this.tileInfoPopup.destroy();
     }
-
-    // Clean up animal system
-    this.animalSystem?.shutdown();
   }
 
   preload(): void {
     // Load tilesets
     this.load.image("tiles-grass", ASSET_PATHS.tiles.grass);
-    this.load.image("tiles-plant", ASSET_PATHS.tiles.plantWithShadow);
-    this.load.image("tiles-props", ASSET_PATHS.tiles.propsWithShadow);
-    this.load.image("tiles-structures", ASSET_PATHS.tiles.structures);
+    this.load.image("tiles-stone-ground", ASSET_PATHS.tiles.stoneGround);
     this.load.image("tiles-wall", ASSET_PATHS.tiles.wall);
-    this.load.tilemapTiledJSON("map", ASSET_PATHS.map);
+    this.load.image("tiles-struct", ASSET_PATHS.tiles.structures);
+    this.load.image("tiles-shadow", ASSET_PATHS.tiles.shadow);
+    this.load.image("tiles-shadow-plant", ASSET_PATHS.tiles.shadowPlant);
+    this.load.image("tiles-props", ASSET_PATHS.tiles.props);
+    this.load.image("tiles-props-shadow", ASSET_PATHS.tiles.propsWithShadow);
+    this.load.image("tiles-player", ASSET_PATHS.tiles.player);
+    this.load.image("tiles-plant", ASSET_PATHS.tiles.plant);
+    this.load.image("tiles-plant-shadow", ASSET_PATHS.tiles.plantWithShadow);
+    this.load.tilemapTiledJSON("no-animals-map", ASSET_PATHS.mapNoAnimals);
     this.load.atlas("atlas", ASSET_PATHS.atlas.image, ASSET_PATHS.atlas.json);
     this.load.audio("mainTheme", ASSET_PATHS.music.mainTheme);
     this.load.audio("hit", ASSET_PATHS.audio.hit);
@@ -145,47 +144,55 @@ export class GameScene extends Phaser.Scene {
     Object.entries(ASSET_PATHS.items).forEach(([key, path]) => {
       this.load.image(key, path);
     });
-
-    // Load all animal spritesheets
-    // Each sprite sheet is a 4x4 grid (16 frames total)
-    ANIMAL_CONFIGS.forEach((config) => {
-      this.load.spritesheet(config.key, config.path, {
-        frameWidth: config.frameWidth,
-        frameHeight: config.frameHeight,
-      });
-    });
   }
 
   create(): void {
-    const map = this.make.tilemap({ key: "map" });
+    const map = this.make.tilemap({ key: "no-animals-map" });
     this.gameMap = map;
 
     // Add all tilesets to the map
     const grassTileset = map.addTilesetImage("TX Tileset Grass", "tiles-grass");
-    const plantTileset = map.addTilesetImage(
-      "TX Plant with Shadow",
-      "tiles-plant",
-    );
-    const propsTileset = map.addTilesetImage(
-      "TX Props with Shadow",
-      "tiles-props",
+    const stoneGroundTileset = map.addTilesetImage(
+      "TX Tileset Stone Ground",
+      "tiles-stone-ground",
     );
     const wallTileset = map.addTilesetImage("TX Tileset Wall", "tiles-wall");
-    const structuresTileset = map.addTilesetImage(
-      "TX Struct",
-      "tiles-structures",
+    const structTileset = map.addTilesetImage("TX Struct", "tiles-struct");
+    const shadowTileset = map.addTilesetImage("TX Shadow", "tiles-shadow");
+    const shadowPlantTileset = map.addTilesetImage(
+      "TX Shadow Plant",
+      "tiles-shadow-plant",
     );
-    if (!grassTileset || !plantTileset || !propsTileset || !wallTileset) {
-      console.error("One or more tilesets not found");
+    const propsTileset = map.addTilesetImage("TX Props", "tiles-props");
+    const propsWithShadowTileset = map.addTilesetImage(
+      "TX Props with Shadow",
+      "tiles-props-shadow",
+    );
+    const playerTileset = map.addTilesetImage("TX Player", "tiles-player");
+    const plantTileset = map.addTilesetImage("TX Plant", "tiles-plant");
+    const plantWithShadowTileset = map.addTilesetImage(
+      "TX Plant with Shadow",
+      "tiles-plant-shadow",
+    );
+
+    if (!grassTileset || !wallTileset) {
+      console.error("Required tilesets not found");
       return;
     }
+
     // Create layers with all tilesets
     const tilesets = [
       grassTileset,
-      plantTileset,
-      propsTileset,
+      stoneGroundTileset,
       wallTileset,
-      structuresTileset,
+      structTileset,
+      shadowTileset,
+      shadowPlantTileset,
+      propsTileset,
+      propsWithShadowTileset,
+      playerTileset,
+      plantTileset,
+      plantWithShadowTileset,
     ].filter((t) => t !== null) as Phaser.Tilemaps.Tileset[];
 
     map.createLayer("Below Player", tilesets, 0, 0);
@@ -208,27 +215,9 @@ export class GameScene extends Phaser.Scene {
     );
 
     if (!spawnPoint) {
-      console.error("Spawn Point not found in map");
+      console.error("Spawn point not found in map");
       return;
     }
-
-    const oldStatue = map.findObject("Objects", (obj) => {
-      const parsedObj = obj as Phaser.GameObjects.GameObject & {
-        properties: [
-          {
-            name: string;
-            type: string;
-            value: string;
-          },
-        ];
-        id: number;
-      };
-      if (!parsedObj.properties) return false;
-      return (
-        parsedObj.properties.find((property) => property.name === "type")
-          ?.value === "intelligent"
-      );
-    });
 
     // Setup input - use virtual cursors for mobile, real keyboard for desktop
     this.isMobile = isMobileDevice();
@@ -250,15 +239,10 @@ export class GameScene extends Phaser.Scene {
         }
       | undefined;
 
-    // Use spawn point as default, but will be overridden by saved position or scene transition data
-    let spawnX = spawnPoint.x ?? 0;
-    let spawnY = spawnPoint.y ?? 0;
-
-    // If coming from another scene, use the provided position
-    if (initData?.playerX !== undefined && initData?.playerY !== undefined) {
-      spawnX = initData.playerX;
-      spawnY = initData.playerY;
-    }
+    // Always use spawn point when transitioning from another scene
+    // Otherwise, use spawn point as default (will be overridden by saved position if available)
+    const spawnX = spawnPoint.x ?? 0;
+    const spawnY = spawnPoint.y ?? 0;
 
     this.player = new Player(
       this,
@@ -323,7 +307,6 @@ export class GameScene extends Phaser.Scene {
     // Initialize inventory system
     this.inventorySystem = new InventorySystem();
     this.inventorySystem.init();
-    // UI is now handled by React components
     this.inventorySystem.setOnInventoryChange(() => {
       this.scheduleSave();
     });
@@ -375,7 +358,6 @@ export class GameScene extends Phaser.Scene {
     this.tileManagementSystem.setGameMap(this.gameMap);
     this.tileManagementSystem.setWorldLayer(this.worldLayer);
     this.tileManagementSystem.setAboveLayer(this.aboveLayer);
-    this.tileManagementSystem.setPlayer(this.player);
     this.tileManagementSystem.setOnGetItemQuantity((itemId) => {
       return this.inventorySystem?.getItemQuantity(itemId) || 0;
     });
@@ -393,13 +375,6 @@ export class GameScene extends Phaser.Scene {
     });
     this.tileManagementSystem.initializeTileGroups();
 
-    if (oldStatue) {
-      this.chatSystem?.setStatuePosition({
-        x: oldStatue.x ?? 0,
-        y: oldStatue.y ?? 0,
-      });
-    }
-
     this.setupDebugControls();
     this.setupInputHandling();
     this.setupInventoryControls();
@@ -411,85 +386,114 @@ export class GameScene extends Phaser.Scene {
 
     // Initialize save system
     this.initSaveSystem();
+  }
 
-    // Initialize animal system
-    this.animalSystem = new AnimalSystem(this);
-    this.animalSystem.init(this.gameMap, this.worldLayer, this.player);
-    this.animalSystem.createAllAnimations();
-    this.animalSystem.setOnAnimalKilled((loot) => {
-      // Fallback: When animal dies, add all loot items to inventory (if dispersion not working)
-      if (this.inventorySystem) {
-        loot.forEach((lootItem) => {
-          this.inventorySystem?.addItem(lootItem.itemId, lootItem.quantity);
-        });
+  /**
+   * Setup scene transition controls
+   */
+  private setupSceneTransitionControls(): void {
+    // "s" key to switch scenes (fallback)
+    const sKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.S);
+
+    sKey?.on("down", () => {
+      if (
+        this.chatSystem?.isOpen() ||
+        this.menuSystem?.isOpen() ||
+        this.dialogSystem?.isVisible() ||
+        this.inventorySystem?.isOpen() ||
+        this.isTransitioning
+      ) {
+        return;
       }
-    });
-    this.animalSystem.setOnDisperseLoot((loot, x, y) => {
-      this.lootDispersionSystem?.disperseLoot(loot, x, y);
+      this.transitionToScene("GameScene");
     });
 
-    // Spawn animals - herbivores in herds, predators scattered
-    this.animalSystem.spawnAnimals([
-      // Herbivores - spawn in herds
-      {
-        animalKey: "miniBunny",
-        quantity: 100,
-        spawnAsHerd: {
-          enabled: true,
-          herdSize: 8, // 8 bunnies per herd
-          herdSpacing: 80, // Maximum 80 pixels between bunnies in a herd
-        },
+    // Check for stairs interaction
+    this.time.addEvent({
+      delay: 100,
+      callback: this.checkStairsProximity,
+      loop: true,
+    });
+  }
+
+  /**
+   * Check if player is on stairs and trigger transition
+   */
+  private checkStairsProximity = (): void => {
+    if (
+      !this.player ||
+      !this.gameMap ||
+      !this.worldLayer ||
+      this.isTransitioning
+    ) {
+      return;
+    }
+
+    const playerPos = this.player.getPosition();
+    const tileWidth = this.gameMap.tileWidth || 32;
+    const tileHeight = this.gameMap.tileHeight || 32;
+
+    // Get the tile the player is on
+    const tileX = Math.floor(playerPos.x / tileWidth);
+    const tileY = Math.floor(playerPos.y / tileHeight);
+
+    const tile = this.worldLayer.getTileAt(tileX, tileY);
+    if (!tile || tile.index === null || tile.index === -1) {
+      return;
+    }
+
+    // Check if tile has "stairs" property or is a stairs tile
+    // Stairs tiles in no-animals map are in the World layer (GIDs 579, 580, 581, 595, 596, 597, 611, 612, 613)
+    const tileGID = tile.index + (tile.tileset?.firstgid || 0);
+    const stairsGIDs = [579, 580, 581, 595, 596, 597, 611, 612, 613];
+
+    const isStairsTile = stairsGIDs.includes(tileGID);
+    const hasStairsProperty =
+      getTileProperty(tile, "stairs") !== undefined ||
+      getTileProperty(tile, "scene-transition") !== undefined;
+
+    // Check if player is moving up (climbing stairs)
+    const isMovingUp =
+      this.cursors?.up.isDown || this.virtualCursors?.up.isDown;
+
+    if ((isStairsTile || hasStairsProperty) && isMovingUp) {
+      this.transitionToScene("GameScene");
+    }
+  };
+
+  /**
+   * Transition to another scene with fade effect
+   */
+  private transitionToScene(sceneKey: string): void {
+    if (this.isTransitioning) return;
+
+    this.isTransitioning = true;
+
+    // Save current state before transitioning
+    this.saveGameState();
+
+    // Get player position to pass to next scene
+    const playerPos = this.player?.getPosition() || { x: 0, y: 0 };
+    const playerDirection = this.player?.getDirection() || "down";
+
+    // Fade out (0.33s)
+    this.cameras.main.fadeOut(333, 0, 0, 0);
+
+    this.cameras.main.once(
+      Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE,
+      () => {
+        // Keep black screen (0.34s)
+        this.time.delayedCall(340, () => {
+          // Start next scene with fade in
+          this.scene.start(sceneKey, {
+            playerX: playerPos.x,
+            playerY: playerPos.y,
+            playerDirection,
+            fromScene: this.scene.key,
+          });
+        });
       },
-      {
-        animalKey: "miniBoar",
-        quantity: 40,
-        spawnAsHerd: {
-          enabled: true,
-          herdSize: 5, // 5 boars per herd
-          herdSpacing: 100, // Maximum 100 pixels between boars in a herd
-        },
-      },
-      {
-        animalKey: "miniDeer1",
-        quantity: 30,
-        spawnAsHerd: {
-          enabled: true,
-          herdSize: 6, // 6 deer per herd
-          herdSpacing: 120, // Maximum 120 pixels between deer in a herd
-        },
-      },
-      {
-        animalKey: "miniDeer2",
-        quantity: 30,
-        spawnAsHerd: {
-          enabled: true,
-          herdSize: 6, // 6 deer per herd
-          herdSpacing: 120, // Maximum 120 pixels between deer in a herd
-        },
-      },
-      {
-        animalKey: "miniBird",
-        quantity: 25,
-        spawnAsHerd: {
-          enabled: true,
-          herdSize: 5, // 5 birds per flock
-          herdSpacing: 60, // Maximum 60 pixels between birds in a flock
-        },
-      },
-      // Predators - spawn scattered (no herd configuration)
-      {
-        animalKey: "miniBear",
-        quantity: 10,
-      },
-      {
-        animalKey: "miniFox",
-        quantity: 10,
-      },
-      {
-        animalKey: "miniWolf",
-        quantity: 10,
-      },
-    ]);
+    );
   }
 
   /**
@@ -566,8 +570,7 @@ export class GameScene extends Phaser.Scene {
     // Get modified tiles from tile management system
     const modifiedTiles = this.tileManagementSystem?.getPlacedTiles() || [];
 
-    // Collect hidden tiles (tiles that were collected and hidden)
-    // Include both world and above layer tiles
+    // Collect hidden tiles
     const hiddenTiles: Array<{
       x: number;
       y: number;
@@ -575,7 +578,6 @@ export class GameScene extends Phaser.Scene {
     }> = [];
 
     if (this.worldLayer) {
-      // Scan world layer for hidden tiles (alpha = 0)
       for (let y = 0; y < this.gameMap.height; y += 1) {
         for (let x = 0; x < this.gameMap.width; x += 1) {
           const tile = this.worldLayer.getTileAt(x, y);
@@ -587,7 +589,6 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (this.aboveLayer) {
-      // Scan above layer for hidden tiles (alpha = 0)
       for (let y = 0; y < this.gameMap.height; y += 1) {
         for (let x = 0; x < this.gameMap.width; x += 1) {
           const tile = this.aboveLayer.getTileAt(x, y);
@@ -645,20 +646,19 @@ export class GameScene extends Phaser.Scene {
 
     debugLog("Loading game state for world:", saveData.worldName);
 
-    // Check if this is a new game (no progress made)
-    const isNewGame =
-      saveData.playerPosition.x === 0 &&
-      saveData.playerPosition.y === 0 &&
-      Object.keys(saveData.inventory).length === 0 &&
-      saveData.modifiedTiles.length === 0 &&
-      saveData.hiddenTiles.length === 0;
-
-    // Load player position - use spawn point for new games
+    // Load player position
     if (this.player && saveData.playerPosition) {
       let x = saveData.playerPosition.x;
       let y = saveData.playerPosition.y;
 
-      // If it's a new game, use spawn point instead of (0, 0)
+      // If it's a new game, use spawn point
+      const isNewGame =
+        x === 0 &&
+        y === 0 &&
+        Object.keys(saveData.inventory).length === 0 &&
+        saveData.modifiedTiles.length === 0 &&
+        saveData.hiddenTiles.length === 0;
+
       if (isNewGame && this.gameMap) {
         const spawnPoint = this.gameMap.findObject(
           "Objects",
@@ -667,7 +667,6 @@ export class GameScene extends Phaser.Scene {
         if (spawnPoint) {
           x = spawnPoint.x ?? 0;
           y = spawnPoint.y ?? 0;
-          debugLog("New game detected, using spawn point:", x, y);
         }
       }
 
@@ -686,17 +685,14 @@ export class GameScene extends Phaser.Scene {
       );
     }
 
-    // Restore modified tiles (trees that were placed)
+    // Restore modified tiles
     if (saveData.modifiedTiles && this.tileManagementSystem) {
       this.tileManagementSystem.loadPlacedTiles(saveData.modifiedTiles);
-      debugLog(`Restored ${saveData.modifiedTiles.length} placed tiles`);
     }
 
-    // Restore hidden tiles (tiles that were collected)
-    // Handle both world and above layer tiles
+    // Restore hidden tiles
     if (saveData.hiddenTiles) {
       saveData.hiddenTiles.forEach((tileData) => {
-        // Support both old format (without layer) and new format (with layer)
         const layer =
           "layer" in tileData && tileData.layer === "above"
             ? this.aboveLayer
@@ -713,8 +709,6 @@ export class GameScene extends Phaser.Scene {
         }
       });
 
-      // Rebuild tile groups for trees that were hidden
-      // This ensures groups are properly tracked even after loading
       this.tileManagementSystem?.initializeTileGroups();
     }
 
@@ -729,20 +723,18 @@ export class GameScene extends Phaser.Scene {
     // Load energy
     if (saveData.energy !== undefined && this.energySystem) {
       this.energySystem.setEnergy(saveData.energy);
-      debugLog(`Loaded energy: ${saveData.energy}`);
     }
 
     debugLog("Game state loaded successfully");
   }
 
   /**
-   * Set the current world ID (called from Game component)
+   * Set the current world ID
    */
   public setWorldId(worldId: string): void {
     this.currentWorldId = worldId;
     setCurrentWorld(worldId);
     if (this.currentWorldId) {
-      // Delay loading to ensure map is ready
       this.time.delayedCall(200, () => {
         if (this.currentWorldId) {
           this.loadGameState(this.currentWorldId);
@@ -753,11 +745,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Schedule a save (throttled to prevent too frequent saves)
-   * This is now handled by calling saveGameState() directly when needed
+   * Schedule a save
    */
   private scheduleSave(): void {
-    // Trigger save if enough time has passed since last save
     const now = Date.now();
     if (now - this.lastSaveTime >= MIN_SAVE_INTERVAL) {
       this.saveGameState();
@@ -765,8 +755,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Get current music volume (delegates to AudioSystem)
-   * Used by MenuSystem for volume slider
+   * Get current music volume
    */
   public getMusicVolume(): number {
     return this.audioSystem?.getMusicVolume() || 0.5;
@@ -774,7 +763,6 @@ export class GameScene extends Phaser.Scene {
 
   /**
    * Get current time of day
-   * Used by systems to check day/night state
    */
   public getTimeOfDay(): "day" | "night" {
     return this.dayNightSystem?.getTimeOfDay() || "day";
@@ -782,7 +770,6 @@ export class GameScene extends Phaser.Scene {
 
   /**
    * Get current weather type
-   * Used by systems to check weather state
    */
   public getWeatherType():
     | "clear"
@@ -795,14 +782,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   private setupMobileControls(): void {
-    // Bind handlers to preserve 'this' context
     this.handleMobileDirectionChange =
       this.handleMobileDirectionChange.bind(this);
     this.handleMobileActionA = this.handleMobileActionA.bind(this);
     this.handleMobileActionB = this.handleMobileActionB.bind(this);
     this.handleMobileStart = this.handleMobileStart.bind(this);
 
-    // Listen for mobile control events
     window.addEventListener(
       "mobileDirectionChange",
       this.handleMobileDirectionChange,
@@ -828,7 +813,6 @@ export class GameScene extends Phaser.Scene {
   };
 
   private handleMobileActionA = (): void => {
-    // Main action: start chat or interact
     if (this.chatSystem?.isOpen()) return;
     if (this.dialogSystem?.isVisible()) {
       this.dialogSystem.handleAdvance();
@@ -845,7 +829,6 @@ export class GameScene extends Phaser.Scene {
   };
 
   private handleMobileActionB = (): void => {
-    // Secondary action: cancel actions
     if (this.chatSystem?.isOpen()) {
       this.chatSystem.closeChat();
     } else if (this.dialogSystem?.isVisible()) {
@@ -856,7 +839,6 @@ export class GameScene extends Phaser.Scene {
   };
 
   private handleMobileStart = (): void => {
-    // Start button: activate menu
     if (this.chatSystem?.isOpen()) return;
     if (this.dialogSystem?.isVisible()) {
       this.dialogSystem.handleAdvance();
@@ -866,7 +848,6 @@ export class GameScene extends Phaser.Scene {
   };
 
   private initSystems(): void {
-    // Initialize menu system
     this.menuSystem = new MenuSystem(this);
     this.menuSystem.setOnMenuSelect((text, speaker) => {
       this.dialogSystem?.showDialog(text, speaker);
@@ -875,25 +856,20 @@ export class GameScene extends Phaser.Scene {
       this.audioSystem?.setMusicVolume(volume);
     });
 
-    // Initialize dialog system
     this.dialogSystem = new DialogSystem();
 
-    // Initialize chat system
     this.chatSystem = new ChatSystem(this);
     this.chatSystem.initChat();
     this.chatSystem.setCanOpenChatCheck(() => {
       return !this.menuSystem?.isOpen() && !this.dialogSystem?.isVisible();
     });
 
-    // Setup keyboard controls for menu/dialog
     this.setupMenuDialogControls();
 
-    // Listen to game events
     gameEventBus.on("game:save", () => {
       this.saveGameState();
     });
 
-    // Listen to volume changes from UI
     gameEventBus.on("menu:volume-change", (payload?: unknown) => {
       if (
         payload &&
@@ -905,14 +881,12 @@ export class GameScene extends Phaser.Scene {
       }
     });
 
-    // Listen to audio toggle events
     gameEventBus.on("audio:toggle-mute", () => {
       this.audioSystem?.toggleMute();
       const isMuted = this.audioSystem?.isMutedState() || false;
       gameEventBus.emit("audio:mute-state-changed", { isMuted });
     });
 
-    // Emit initial mute state after audio system is initialized
     this.time.delayedCall(100, () => {
       const isMuted = this.audioSystem?.isMutedState() || false;
       gameEventBus.emit("audio:mute-state-changed", { isMuted });
@@ -980,28 +954,21 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard?.on("keydown-T", () => {
       tileInfoMode = !tileInfoMode;
       debugLog(
-        `Tile info mode: ${
-          tileInfoMode ? "ON" : "OFF"
-        }. Click on tiles to see their GID.`,
+        `Tile info mode: ${tileInfoMode ? "ON" : "OFF"}. Click on tiles to see their GID.`,
       );
     });
 
-    // Day/night toggle for testing
     this.input.keyboard?.on("keydown-N", () => {
       this.dayNightSystem?.toggle();
       const timeOfDay = this.dayNightSystem?.getTimeOfDay() || "day";
       debugLog(`Time of day: ${timeOfDay.toUpperCase()}`);
     });
 
-    // Weather test mode toggle
     this.input.keyboard?.on("keydown-W", () => {
       this.weatherEffectsSystem?.toggleTestMode();
       const isTestMode =
         this.weatherEffectsSystem?.isTestModeEnabled() || false;
       debugLog(`Weather test mode: ${isTestMode ? "ON" : "OFF"}`);
-      if (isTestMode) {
-        debugLog("Weather will cycle every 5 seconds");
-      }
     });
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
@@ -1017,12 +984,8 @@ export class GameScene extends Phaser.Scene {
 
         const tile = layer.tilemapLayer?.getTileAtWorldXY(worldX, worldY);
         if (tile && tile.index !== null && tile.index !== -1) {
-          // Get the correct tileset for this tile
           const tileset = tile.tileset;
           const firstGID = tileset?.firstgid || 1;
-
-          // Calculate the correct GID using the tile's actual tileset
-          // tile.index is the local index within the tileset, so we add firstgid to get the global GID
           const tileGID = tile.index + firstGID;
 
           const tileX = Math.floor(worldX / (this.gameMap?.tileWidth || 0));
@@ -1031,42 +994,14 @@ export class GameScene extends Phaser.Scene {
           debugLog(`\n=== Tile Info ===`);
           debugLog(`Layer: ${layerName}`);
           debugLog(`Position: (${tileX}, ${tileY})`);
-          debugLog(`Tile Index (local): ${tile.index}`);
-          debugLog(`Tileset: ${tileset?.name || "unknown"}`);
-          debugLog(`Tileset firstGID: ${firstGID}`);
-          debugLog(`Tile GID (Global ID): ${tileGID}`);
-          debugLog(`Collides: ${tile.collides || false}`);
-          if (tile.properties) {
-            debugLog(`Properties:`, tile.properties);
-          }
-          debugLog(`\n=== Summary ===`);
           debugLog(`Tile GID: ${tileGID}`);
+          debugLog(`Collides: ${tile.collides || false}`);
         }
       });
-    });
-
-    this.input.keyboard?.once("keydown", (event: KeyboardEvent) => {
-      if (
-        (event.key === "d" || event.key === "D") &&
-        (event.metaKey || event.ctrlKey)
-      ) {
-        this.physics.world.createDebugGraphic();
-
-        const worldLayer = this.gameMap?.getLayer("World");
-        if (worldLayer) {
-          const graphics = this.add.graphics().setAlpha(0.75).setDepth(20);
-          worldLayer.tilemapLayer?.renderDebug(graphics, {
-            tileColor: null,
-            collidingTileColor: new Phaser.Display.Color(243, 134, 48, 255),
-            faceColor: new Phaser.Display.Color(40, 39, 37, 255),
-          });
-        }
-      }
     });
   }
 
   update(): void {
-    // Don't update player movement if menu, dialog, or chat is open
     if (
       !this.player ||
       this.menuSystem?.isOpen() ||
@@ -1083,34 +1018,24 @@ export class GameScene extends Phaser.Scene {
 
     this.player.update();
 
-    // Update chat system with player position
     if (this.player) {
       this.chatSystem?.updatePlayerPosition(this.player.getPosition());
       this.chatSystem?.checkStatueProximity();
     }
 
-    // Update progress bars visibility based on proximity
     this.collectionSystem?.updateProgressBarsVisibility();
 
-    // Update all animals movement
-    this.animalSystem?.update();
-
-    // Update loot dispersion system
     this.lootDispersionSystem?.update();
 
-    // Update day/night system overlay
     this.dayNightSystem?.update();
 
     // Update lighting system
     this.lightingSystem?.update();
 
-    // Update weather effects
     this.weatherEffectsSystem?.update();
 
-    // Periodically save player position (throttled)
     const now = Date.now();
     if (now - this.lastSaveTime > MIN_SAVE_INTERVAL * 2) {
-      // Save position every 4 seconds if player is moving
       if (this.player.isMoving()) {
         this.saveGameState();
       }
@@ -1132,15 +1057,6 @@ export class GameScene extends Phaser.Scene {
         return;
       }
 
-      // First check for animal interaction
-      const nearbyAnimal = this.animalSystem?.checkAnimalProximity();
-      if (nearbyAnimal) {
-        this.animalSystem?.hitAnimal(nearbyAnimal);
-        this.audioSystem?.playHitSound();
-        return;
-      }
-
-      // Then check for tile collection
       const collectableData = this.collectionSystem?.checkTileProximity();
       if (
         collectableData &&
@@ -1178,123 +1094,16 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  /**
-   * Setup scene transition controls
-   */
-  private setupSceneTransitionControls(): void {
-    // "s" key to switch scenes (fallback)
-    const sKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.S);
-
-    sKey?.on("down", () => {
-      if (
-        this.chatSystem?.isOpen() ||
-        this.menuSystem?.isOpen() ||
-        this.dialogSystem?.isVisible() ||
-        this.inventorySystem?.isOpen() ||
-        this.isTransitioning
-      ) {
-        return;
-      }
-      this.transitionToScene("NoAnimalsScene");
-    });
-
-    // Check for stairs interaction
-    this.time.addEvent({
-      delay: 100,
-      callback: this.checkStairsProximity,
-      loop: true,
-    });
-  }
-
-  /**
-   * Check if player is on stairs and trigger transition
-   */
-  private checkStairsProximity = (): void => {
-    if (
-      !this.player ||
-      !this.gameMap ||
-      !this.worldLayer ||
-      this.isTransitioning
-    ) {
-      return;
-    }
-
-    const playerPos = this.player.getPosition();
-    const tileWidth = this.gameMap.tileWidth || 32;
-    const tileHeight = this.gameMap.tileHeight || 32;
-
-    // Get the tile the player is on
-    const tileX = Math.floor(playerPos.x / tileWidth);
-    const tileY = Math.floor(playerPos.y / tileHeight);
-
-    const tile = this.worldLayer.getTileAt(tileX, tileY);
-    if (!tile || tile.index === null || tile.index === -1) {
-      return;
-    }
-
-    // Check if tile has "stairs" property
-    const hasStairsProperty =
-      getTileProperty(tile, "stairs") !== undefined ||
-      getTileProperty(tile, "scene-transition") !== undefined;
-
-    // Check if player is moving up (climbing stairs)
-    const isMovingUp =
-      this.cursors?.up.isDown || this.virtualCursors?.up.isDown;
-
-    // Trigger transition if on stairs and moving up
-    if (hasStairsProperty && isMovingUp) {
-      this.transitionToScene("NoAnimalsScene");
-    }
-  };
-
-  /**
-   * Transition to another scene with fade effect
-   */
-  private transitionToScene(sceneKey: string): void {
-    if (this.isTransitioning) return;
-
-    this.isTransitioning = true;
-
-    // Save current state before transitioning
-    this.saveGameState();
-
-    // Get player position to pass to next scene
-    const playerPos = this.player?.getPosition() || { x: 0, y: 0 };
-    const playerDirection = this.player?.getDirection() || "down";
-
-    // Fade out (0.33s)
-    this.cameras.main.fadeOut(333, 0, 0, 0);
-
-    this.cameras.main.once(
-      Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE,
-      () => {
-        // Keep black screen (0.34s)
-        this.time.delayedCall(340, () => {
-          // Start next scene with fade in
-          this.scene.start(sceneKey, {
-            playerX: playerPos.x,
-            playerY: playerPos.y,
-            playerDirection,
-            fromScene: this.scene.key,
-          });
-        });
-      },
-    );
-  }
-
   private setupTileInfoHover(): void {
-    // Set up mouse move handler to detect tiles with "info" property
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
       this.handleTileInfoHover(pointer);
     });
 
-    // Set up mouse out handler to hide popup
     this.input.on("pointerout", () => {
       this.hideTileInfoPopup();
       this.hoveredTileInfo = null;
     });
 
-    // Set up "a" key handler to show info in dialog
     const aKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.A);
 
     aKey?.on("down", () => {
@@ -1326,7 +1135,6 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    // Check if tile has "info" property
     const infoText = getTileProperty(tile, "info");
 
     if (infoText) {
@@ -1346,23 +1154,19 @@ export class GameScene extends Phaser.Scene {
     const tileWidth = this.gameMap.tileWidth || 32;
     const tileHeight = this.gameMap.tileHeight || 32;
 
-    // Calculate world position (center of tile)
     const worldX = tileX * tileWidth + tileWidth / 2;
     const worldY = tileY * tileHeight + tileHeight / 2;
 
-    // Create or update popup
     if (!this.tileInfoPopup) {
       this.tileInfoPopup = this.add.container(
         worldX,
         worldY - tileHeight / 2 - 8,
       );
-      this.tileInfoPopup.setDepth(20); // Above tiles but below player
+      this.tileInfoPopup.setDepth(20);
 
-      // Popup dimensions
       const popupSize = 24;
       const padding = 4;
 
-      // Background (similar to progress bar)
       const background = this.add.rectangle(
         0,
         0,
@@ -1374,16 +1178,13 @@ export class GameScene extends Phaser.Scene {
       background.setStrokeStyle(1, 0x333333, 1);
       this.tileInfoPopup.add(background);
 
-      // Info icon (simple "i" text or graphics)
       const infoIcon = this.add.graphics();
       infoIcon.lineStyle(2, 0x4ecdc4, 1);
-      // Draw "i" icon - circle with dot
       infoIcon.strokeCircle(0, 0, popupSize / 2 - 2);
       infoIcon.fillStyle(0x4ecdc4, 1);
       infoIcon.fillCircle(0, -popupSize / 4, 2);
       this.tileInfoPopup.add(infoIcon);
     } else {
-      // Update position
       this.tileInfoPopup.setPosition(worldX, worldY - tileHeight / 2 - 8);
     }
 
@@ -1398,8 +1199,6 @@ export class GameScene extends Phaser.Scene {
 
   private showTileInfoInDialog(infoText: string): void {
     if (!this.dialogSystem) return;
-
-    // Show info text in dialog box with typing effect
     this.dialogSystem.showDialog(infoText);
   }
 
@@ -1420,9 +1219,6 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  /**
-   * Setup crafting keyboard controls
-   */
   private setupCraftingKeyboardControls(): void {
     const craftingKey = this.input.keyboard?.addKey(
       Phaser.Input.Keyboard.KeyCodes.C,
@@ -1441,11 +1237,7 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  /**
-   * Setup crafting system event handlers
-   */
   private setupCraftingControls(): void {
-    // Listen for craft requests from UI
     gameEventBus.on("crafting:craft", (payload?: unknown) => {
       if (
         payload &&
@@ -1458,10 +1250,7 @@ export class GameScene extends Phaser.Scene {
           const result = this.craftingSystem.craft(recipeId);
           if (result.success) {
             this.scheduleSave();
-            // TODO: Play craft sound effect here
-            // Example: this.audioSystem?.playCraftSound();
           } else {
-            // Emit failure event if needed
             gameEventBus.emit("crafting:failure", {
               recipeId,
               message: result.message,
@@ -1471,7 +1260,6 @@ export class GameScene extends Phaser.Scene {
       }
     });
 
-    // Listen for can-craft check requests from UI
     gameEventBus.on("crafting:check", (payload?: unknown) => {
       if (
         payload &&

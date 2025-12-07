@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { GameScene } from "./GameScene";
+import { NoAnimalsScene } from "./NoAnimalsScene";
 import { PreloaderScene } from "./PreloaderScene";
 
 export const createGameConfig = (
@@ -20,5 +21,5 @@ export const createGameConfig = (
     disableWebAudio: false, // Use Web Audio API for better background playback
     noAudio: false,
   },
-  scene: [PreloaderScene, GameScene],
+  scene: [PreloaderScene, GameScene, NoAnimalsScene],
 });

@@ -124,6 +124,9 @@ export class LootDispersionSystem {
       .sprite(centerX, centerY, itemId)
       .setDepth(15); // Above tiles, below player
 
+    // Apply Light2D pipeline so loot items are affected by lighting system
+    sprite.setPipeline("Light2D");
+
     // Calculate scale to fit within 32x32 max (like animals)
     const maxSize = 32;
     const baseWidth = sprite.width;

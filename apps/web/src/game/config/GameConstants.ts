@@ -108,6 +108,25 @@ export const MENU_ENTRIES: MenuEntry[] = [
   { id: "exit", label: "Exit" },
 ];
 
+// Lighting system configuration
+export interface LightingConfig {
+  enabled: boolean;
+  radiusInTiles: number;
+  shadowColor: number;
+  shadowAlpha: number;
+  smoothTransition: boolean;
+  transitionWidth: number; // Percentage of radius for smooth transition (0-1)
+}
+
+export const LIGHTING_CONFIG: LightingConfig = {
+  enabled: true,
+  radiusInTiles: 10, // Light radius in tiles (~160 pixels with 32px tiles)
+  shadowColor: 0x000000, // Black shadow
+  shadowAlpha: 0.1, // Shadow opacity (0-1) - subtle darkening of non-player areas
+  smoothTransition: true, // Enable smooth gradient transition
+  transitionWidth: 0.9, // 40% of radius for smooth transition
+};
+
 // Debug configuration
 export const DEBUG =
   import.meta.env.VITE_DEBUG === "true" || import.meta.env.DEV;

@@ -395,6 +395,9 @@ export class AnimalSystem {
       .sprite(x, y, config.key, 0)
       .setScale(config.scale || 2);
 
+    // Apply Light2D pipeline so animals are affected by lighting system
+    sprite.setPipeline("Light2D");
+
     // Set collision body size - smaller, centered around the bunny
     const scale = config.scale || 2;
     const scaledWidth = config.frameWidth * scale * this.COLLISION_BODY_SCALE;

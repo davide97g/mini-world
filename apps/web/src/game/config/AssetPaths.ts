@@ -1,11 +1,19 @@
 export const ASSET_PATHS = {
   tiles: {
     grass: "/tilesets/ancient-ruins/TX Tileset Grass.png",
+    stoneGround: "/tilesets/ancient-ruins/TX Tileset Stone Ground.png",
     plantWithShadow: "/tilesets/ancient-ruins/TX Plant with Shadow.png",
+    plant: "/tilesets/ancient-ruins/TX Plant.png",
     propsWithShadow: "/tilesets/ancient-ruins/TX Props with Shadow.png",
+    props: "/tilesets/ancient-ruins/TX Props.png",
+    structures: "/tilesets/ancient-ruins/TX Struct.png",
+    shadow: "/tilesets/ancient-ruins/TX Shadow.png",
+    shadowPlant: "/tilesets/ancient-ruins/TX Shadow Plant.png",
+    player: "/tilesets/ancient-ruins/TX Player.png",
     wall: "/tilesets/ancient-ruins/TX Tileset Wall.png",
   },
   map: "/tilemaps/main-map.json",
+  mapNoAnimals: "/tilemaps/no-animals.json",
   atlas: {
     image: "/atlas/atlas.png",
     json: "/atlas/atlas.json",
