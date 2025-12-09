@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MENU_ENTRIES } from "../../game/config/GameConstants";
 import { gameEventBus } from "../../game/utils/GameEventBus";
 
@@ -10,12 +10,27 @@ interface MenuUIProps {
 }
 
 const MenuUI = ({ isOpen, onClose }: MenuUIProps) => {
+  // Use ref to track current menu state to avoid closure issues
+  const isOpenRef = useRef(isOpen);
   const [menuState, setMenuState] = useState<MenuState>("main");
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [volume, setVolume] = useState(0.5);
+
+  // Initialize volume from localStorage or default to 0.5
+  const getInitialVolume = (): number => {
+    const savedVolume = localStorage.getItem("musicVolume");
+    if (savedVolume !== null) {
+      const parsed = parseFloat(savedVolume);
+      if (!Number.isNaN(parsed) && parsed >= 0 && parsed <= 1) {
+        return parsed;
+      }
+    }
+    return 0.5;
+  };
+
+  const [volume, setVolume] = useState(getInitialVolume);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
 
-  // Listen to menu updates for volume
+  // Listen to menu updates for volume (syncs with game's current volume when menu opens)
   useEffect(() => {
     const handleMenuUpdate = (payload?: unknown) => {
       if (
@@ -106,16 +121,45 @@ const MenuUI = ({ isOpen, onClose }: MenuUIProps) => {
     [onClose],
   );
 
+  // Keep ref in sync with isOpen state
   useEffect(() => {
+    isOpenRef.current = isOpen;
+  }, [isOpen]);
+
+  const getMenuEntries = useCallback(() => {
+    if (menuState === "options") {
+      return [
+        { id: "Volume", label: "Volume" },
+        { id: "exit", label: "Exit" },
+        { id: "Back", label: "Back" },
+      ];
+    }
+    return MENU_ENTRIES;
+  }, [menuState]);
+
+  useEffect(() => {
+    // Reset menu state when closed
     if (!isOpen) {
       setMenuState("main");
       setSelectedIndex(0);
       setShowExitConfirm(false);
+      // Don't add event listener when menu is closed - let all events propagate normally
       return;
     }
 
+    // Only add event listener when menu is open
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isOpen) return;
+      // Use ref to check current state (avoids closure issues)
+      // This ensures events propagate normally when menu is closed
+      if (!isOpenRef.current) {
+        return; // Don't block events if menu closed
+      }
+
+      // Prevent all keyboard events from reaching Phaser when menu is open
+      // This stops player movement and other game actions
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
 
       // Handle exit confirmation dialog
       if (showExitConfirm) {
@@ -155,46 +199,43 @@ const MenuUI = ({ isOpen, onClose }: MenuUIProps) => {
       }
 
       if (e.key === "ArrowUp") {
-        e.preventDefault();
-        const maxIndex = menuState === "options" ? 1 : MENU_ENTRIES.length - 1;
+        const maxIndex = menuState === "options" ? 2 : MENU_ENTRIES.length - 1;
         setSelectedIndex((prev) => (prev > 0 ? prev - 1 : maxIndex));
       } else if (e.key === "ArrowDown") {
-        e.preventDefault();
-        const maxIndex = menuState === "options" ? 1 : MENU_ENTRIES.length - 1;
+        const maxIndex = menuState === "options" ? 2 : MENU_ENTRIES.length - 1;
         setSelectedIndex((prev) => (prev < maxIndex ? prev + 1 : 0));
-      } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-        // For column navigation in main menu
-        if (menuState === "main") {
-          e.preventDefault();
-          const currentCol = selectedIndex % 2;
-          const currentRow = Math.floor(selectedIndex / 2);
-          if (e.key === "ArrowLeft" && currentCol === 1) {
-            setSelectedIndex(currentRow * 2);
-          } else if (e.key === "ArrowRight" && currentCol === 0) {
-            setSelectedIndex(currentRow * 2 + 1);
-          }
-        }
       } else if (e.key === "Enter") {
-        e.preventDefault();
         if (menuState === "main") {
           const selectedEntry = MENU_ENTRIES[selectedIndex];
           handleMenuSelect(selectedEntry.id);
         } else if (menuState === "options") {
-          const optionsEntries = ["Volume", "Back"];
-          const selectedEntry = optionsEntries[selectedIndex];
-          if (selectedEntry === "Back") {
+          const entries = getMenuEntries();
+          const selectedEntry = entries[selectedIndex];
+          const entryId =
+            typeof selectedEntry === "string"
+              ? selectedEntry
+              : selectedEntry.id;
+          if (entryId === "Back") {
             setMenuState("main");
             setSelectedIndex(0);
           } else {
-            handleMenuSelect(selectedEntry);
+            handleMenuSelect(entryId);
           }
+        } else if (menuState === "volume") {
+          // Go back to options from volume
+          setMenuState("options");
+          setSelectedIndex(0);
         }
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
+    // Use capture phase to intercept events before they reach Phaser
+    // Only add listener when menu is open - this ensures events work normally when closed
+    window.addEventListener("keydown", handleKeyDown, true);
+
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
+      // Remove listener when menu closes or component unmounts
+      window.removeEventListener("keydown", handleKeyDown, true);
     };
   }, [
     isOpen,
@@ -205,23 +246,17 @@ const MenuUI = ({ isOpen, onClose }: MenuUIProps) => {
     showExitConfirm,
     handleExitConfirm,
     volume,
+    getMenuEntries,
   ]);
 
   useEffect(() => {
+    // When volume changes in the menu, save it immediately
     if (menuState === "volume") {
       gameEventBus.emit("menu:volume-change", { volume });
+      // Also save to localStorage directly to ensure persistence
+      localStorage.setItem("musicVolume", volume.toString());
     }
   }, [volume, menuState]);
-
-  const getMenuEntries = () => {
-    if (menuState === "options") {
-      return [
-        { id: "Volume", label: "Volume" },
-        { id: "Back", label: "Back" },
-      ];
-    }
-    return MENU_ENTRIES;
-  };
 
   if (!isOpen) {
     return null;
@@ -238,7 +273,7 @@ const MenuUI = ({ isOpen, onClose }: MenuUIProps) => {
           aria-label="Cancel exit"
         />
         <div className="fixed inset-0 flex items-center justify-center z-50">
-          <div className="bg-gray-800 border-2 border-gray-500 rounded p-6 max-w-md w-full mx-4">
+          <div className="bg-gray-800 border-2 border-gray-500 rounded-xl p-6 max-w-md w-full mx-4">
             <h3 className="text-white text-lg font-mono mb-4">Exit Game</h3>
             <p className="text-white text-sm font-mono mb-6">
               Do you want to save your progress before exiting?
@@ -284,67 +319,45 @@ const MenuUI = ({ isOpen, onClose }: MenuUIProps) => {
         aria-label="Close menu"
       />
 
-      {/* Menu Panel */}
-      <div className="fixed top-4 right-4 w-64 bg-gray-300 bg-opacity-85 border-2 border-gray-500 rounded z-50 shadow-lg">
-        {menuState === "volume" ? (
-          <div className="p-4">
-            <h3 className="text-white text-base font-mono mb-4">Volume</h3>
-            <div className="mb-4">
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.1"
-                value={volume}
-                onChange={(e) => {
-                  const newVolume = parseFloat(e.target.value);
-                  setVolume(newVolume);
-                  gameEventBus.emit("menu:volume-change", {
-                    volume: newVolume,
-                  });
-                }}
-                className="w-full"
-              />
-              <p className="text-white text-sm font-mono mt-2">
-                {Math.round(volume * 100)}%
+      {/* Menu Panel - Centered */}
+      <div className="fixed inset-0 flex items-center justify-center z-50">
+        <div className="w-64 bg-gray-300 bg-opacity-85 border-2 border-gray-500 rounded-xl shadow-lg">
+          {menuState === "volume" ? (
+            <div className="p-4">
+              <h3 className="text-white text-base font-mono mb-4">Volume</h3>
+              <div className="mb-4">
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={volume}
+                  onChange={(e) => {
+                    const newVolume = parseFloat(e.target.value);
+                    setVolume(newVolume);
+                    gameEventBus.emit("menu:volume-change", {
+                      volume: newVolume,
+                    });
+                  }}
+                  className="w-full"
+                />
+                <p className="text-white text-sm font-mono mt-2">
+                  {Math.round(volume * 100)}%
+                </p>
+              </div>
+              <p className="text-white text-xs font-mono">
+                Press ESC to go back
               </p>
             </div>
-            <p className="text-white text-xs font-mono">Press ESC to go back</p>
-          </div>
-        ) : (
-          <div className="p-3">
-            {menuState === "main" ? (
-              // Display in 2 columns
-              <div className="grid grid-cols-2 gap-2">
-                {entries.map((entry, index) => (
-                  <button
-                    type="button"
-                    key={`menu-${menuState}-${entry.id}`}
-                    className={`p-2 cursor-pointer text-left rounded ${
-                      index === selectedIndex
-                        ? "bg-gray-600 text-white"
-                        : "text-white hover:bg-gray-500"
-                    }`}
-                    onClick={() => {
-                      setSelectedIndex(index);
-                      handleMenuSelect(entry.id);
-                    }}
-                    onMouseEnter={() => setSelectedIndex(index)}
-                  >
-                    {index === selectedIndex ? `► ${entry.label}` : entry.label}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              // Options menu - single column
-              <div className="space-y-1">
-                {entries.map((entry, index) => {
-                  const entryLabel =
-                    typeof entry === "string" ? entry : entry.label;
-                  return (
+          ) : (
+            <div className="p-3">
+              {menuState === "main" ? (
+                // Display in single column
+                <div className="space-y-1">
+                  {entries.map((entry, index) => (
                     <button
                       type="button"
-                      key={`menu-${menuState}-${entryLabel}`}
+                      key={`menu-${menuState}-${entry.id}`}
                       className={`p-2 w-full cursor-pointer text-left rounded ${
                         index === selectedIndex
                           ? "bg-gray-600 text-white"
@@ -352,23 +365,55 @@ const MenuUI = ({ isOpen, onClose }: MenuUIProps) => {
                       }`}
                       onClick={() => {
                         setSelectedIndex(index);
-                        if (entryLabel === "Back") {
-                          setMenuState("main");
-                          setSelectedIndex(0);
-                        } else {
-                          handleMenuSelect(entryLabel);
-                        }
+                        handleMenuSelect(entry.id);
                       }}
                       onMouseEnter={() => setSelectedIndex(index)}
                     >
-                      {index === selectedIndex ? `► ${entryLabel}` : entryLabel}
+                      {index === selectedIndex
+                        ? `► ${entry.label}`
+                        : entry.label}
                     </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
+                  ))}
+                </div>
+              ) : (
+                // Options menu - single column
+                <div className="space-y-1">
+                  {entries.map((entry, index) => {
+                    const entryId =
+                      typeof entry === "string" ? entry : entry.id;
+                    const entryLabel =
+                      typeof entry === "string" ? entry : entry.label;
+                    return (
+                      <button
+                        type="button"
+                        key={`menu-${menuState}-${entryId}`}
+                        className={`p-2 w-full cursor-pointer text-left rounded ${
+                          index === selectedIndex
+                            ? "bg-gray-600 text-white"
+                            : "text-white hover:bg-gray-500"
+                        }`}
+                        onClick={() => {
+                          setSelectedIndex(index);
+                          if (entryId === "Back") {
+                            setMenuState("main");
+                            setSelectedIndex(0);
+                          } else {
+                            handleMenuSelect(entryId);
+                          }
+                        }}
+                        onMouseEnter={() => setSelectedIndex(index)}
+                      >
+                        {index === selectedIndex
+                          ? `► ${entryLabel}`
+                          : entryLabel}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </>
   );

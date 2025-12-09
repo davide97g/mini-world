@@ -1037,7 +1037,7 @@ export class NoAnimalsScene extends Phaser.Scene {
       if (this.dialogSystem?.isVisible()) {
         this.dialogSystem.handleAdvance();
         gameEventBus.emit("dialog:advance");
-      } else if (!this.menuSystem?.isOpen()) {
+      } else {
         this.menuSystem?.toggleMenu();
       }
     });

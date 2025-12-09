@@ -2,10 +2,20 @@ import { useEffect, useState } from "react";
 import GameCanvas from "./components/GameCanvas";
 import GameUI from "./components/GameUI";
 import WorldSelection from "./components/WorldSelection";
+import { getCurrentWorldId } from "./game/services/SaveService";
 
 const App = () => {
   const [showWorldSelection, setShowWorldSelection] = useState(true);
   const [worldId, setWorldId] = useState<string | null>(null);
+
+  // Auto-resume last game on startup
+  useEffect(() => {
+    const lastWorldId = getCurrentWorldId();
+    if (lastWorldId) {
+      setWorldId(lastWorldId);
+      setShowWorldSelection(false);
+    }
+  }, []);
 
   useEffect(() => {
     const handleExitToWorldSelection = () => {
