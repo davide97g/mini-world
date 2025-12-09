@@ -63,12 +63,8 @@ const Game = () => {
     );
   };
 
-  const handleActionA = () => {
-    window.dispatchEvent(new CustomEvent("mobileActionA"));
-  };
-
-  const handleActionB = () => {
-    window.dispatchEvent(new CustomEvent("mobileActionB"));
+  const handleActionX = () => {
+    window.dispatchEvent(new CustomEvent("mobileActionX"));
   };
 
   const handleStart = () => {
@@ -106,8 +102,7 @@ const Game = () => {
           />
           <MobileControls
             onDirectionChange={handleDirectionChange}
-            onActionA={handleActionA}
-            onActionB={handleActionB}
+            onActionX={handleActionX}
             onStart={handleStart}
           />
           <div

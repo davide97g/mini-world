@@ -7,8 +7,7 @@ interface MobileControlsProps {
     left: boolean;
     right: boolean;
   }) => void;
-  onActionA: () => void;
-  onActionB: () => void;
+  onActionX: () => void;
   onStart: () => void;
 }
 
@@ -22,8 +21,7 @@ const checkMobile = (): boolean => {
 
 const MobileControls = ({
   onDirectionChange,
-  onActionA,
-  onActionB,
+  onActionX,
   onStart,
 }: MobileControlsProps) => {
   const [isMobile, setIsMobile] = useState(checkMobile());
@@ -58,41 +56,28 @@ const MobileControls = ({
     onDirectionChange({ ...directionStateRef.current });
   };
 
-  const handleTouchStart = (
+  const handlePointerDown = (
     direction: "up" | "down" | "left" | "right",
-    e: React.TouchEvent,
+    e: React.PointerEvent,
   ) => {
     e.preventDefault();
     handleDirectionStart(direction);
   };
 
-  const handleTouchEnd = (
+  const handlePointerUp = (
     direction: "up" | "down" | "left" | "right",
-    e: React.TouchEvent,
+    e: React.PointerEvent,
   ) => {
     e.preventDefault();
     handleDirectionEnd(direction);
   };
 
-  const handleMouseDown = (direction: "up" | "down" | "left" | "right") => {
-    handleDirectionStart(direction);
-  };
-
-  const handleMouseUp = (direction: "up" | "down" | "left" | "right") => {
-    handleDirectionEnd(direction);
-  };
-
-  const handleActionA = (e: React.TouchEvent | React.MouseEvent) => {
+  const handleActionX = (e: React.PointerEvent | React.MouseEvent) => {
     e.preventDefault();
-    onActionA();
+    onActionX();
   };
 
-  const handleActionB = (e: React.TouchEvent | React.MouseEvent) => {
-    e.preventDefault();
-    onActionB();
-  };
-
-  const handleStart = (e: React.TouchEvent | React.MouseEvent) => {
+  const handleStart = (e: React.PointerEvent | React.MouseEvent) => {
     e.preventDefault();
     onStart();
   };
@@ -123,12 +108,14 @@ const MobileControls = ({
             style={{
               backgroundColor: "rgba(17, 24, 39, 0.95)",
               borderColor: "rgba(156, 163, 175, 0.8)",
+              touchAction: "none",
             }}
-            onTouchStart={(e) => handleTouchStart("up", e)}
-            onTouchEnd={(e) => handleTouchEnd("up", e)}
-            onMouseDown={() => handleMouseDown("up")}
-            onMouseUp={() => handleMouseUp("up")}
-            onMouseLeave={() => handleMouseUp("up")}
+            onPointerDown={(e) => handlePointerDown("up", e)}
+            onPointerUp={(e) => handlePointerUp("up", e)}
+            onPointerLeave={(e) => handlePointerUp("up", e)}
+            onMouseDown={() => handleDirectionStart("up")}
+            onMouseUp={() => handleDirectionEnd("up")}
+            onMouseLeave={() => handleDirectionEnd("up")}
             aria-label="Move Up"
           >
             ↑
@@ -141,12 +128,14 @@ const MobileControls = ({
             style={{
               backgroundColor: "rgba(17, 24, 39, 0.95)",
               borderColor: "rgba(156, 163, 175, 0.8)",
+              touchAction: "none",
             }}
-            onTouchStart={(e) => handleTouchStart("down", e)}
-            onTouchEnd={(e) => handleTouchEnd("down", e)}
-            onMouseDown={() => handleMouseDown("down")}
-            onMouseUp={() => handleMouseUp("down")}
-            onMouseLeave={() => handleMouseUp("down")}
+            onPointerDown={(e) => handlePointerDown("down", e)}
+            onPointerUp={(e) => handlePointerUp("down", e)}
+            onPointerLeave={(e) => handlePointerUp("down", e)}
+            onMouseDown={() => handleDirectionStart("down")}
+            onMouseUp={() => handleDirectionEnd("down")}
+            onMouseLeave={() => handleDirectionEnd("down")}
             aria-label="Move Down"
           >
             ↓
@@ -159,12 +148,14 @@ const MobileControls = ({
             style={{
               backgroundColor: "rgba(17, 24, 39, 0.95)",
               borderColor: "rgba(156, 163, 175, 0.8)",
+              touchAction: "none",
             }}
-            onTouchStart={(e) => handleTouchStart("left", e)}
-            onTouchEnd={(e) => handleTouchEnd("left", e)}
-            onMouseDown={() => handleMouseDown("left")}
-            onMouseUp={() => handleMouseUp("left")}
-            onMouseLeave={() => handleMouseUp("left")}
+            onPointerDown={(e) => handlePointerDown("left", e)}
+            onPointerUp={(e) => handlePointerUp("left", e)}
+            onPointerLeave={(e) => handlePointerUp("left", e)}
+            onMouseDown={() => handleDirectionStart("left")}
+            onMouseUp={() => handleDirectionEnd("left")}
+            onMouseLeave={() => handleDirectionEnd("left")}
             aria-label="Move Left"
           >
             ←
@@ -177,12 +168,14 @@ const MobileControls = ({
             style={{
               backgroundColor: "rgba(17, 24, 39, 0.95)",
               borderColor: "rgba(156, 163, 175, 0.8)",
+              touchAction: "none",
             }}
-            onTouchStart={(e) => handleTouchStart("right", e)}
-            onTouchEnd={(e) => handleTouchEnd("right", e)}
-            onMouseDown={() => handleMouseDown("right")}
-            onMouseUp={() => handleMouseUp("right")}
-            onMouseLeave={() => handleMouseUp("right")}
+            onPointerDown={(e) => handlePointerDown("right", e)}
+            onPointerUp={(e) => handlePointerUp("right", e)}
+            onPointerLeave={(e) => handlePointerUp("right", e)}
+            onMouseDown={() => handleDirectionStart("right")}
+            onMouseUp={() => handleDirectionEnd("right")}
+            onMouseLeave={() => handleDirectionEnd("right")}
             aria-label="Move Right"
           >
             →
@@ -191,50 +184,34 @@ const MobileControls = ({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-3">
-          {/* A Button - Main Action */}
+          {/* X Button - Interact with Environment */}
           <button
             type="button"
-            className="w-14 h-14 bg-green-600 border-2 border-green-300 rounded-full flex items-center justify-center text-white text-lg font-bold active:bg-green-500 select-none touch-none shadow-lg"
+            className="w-14 h-14 bg-blue-600 border-2 border-blue-300 rounded-full flex items-center justify-center text-white text-lg font-bold active:bg-blue-500 select-none touch-none shadow-lg"
             style={{
-              backgroundColor: "rgba(22, 163, 74, 0.95)",
-              borderColor: "rgba(134, 239, 172, 0.8)",
+              backgroundColor: "rgba(37, 99, 235, 0.95)",
+              borderColor: "rgba(147, 197, 253, 0.8)",
+              touchAction: "none",
             }}
-            onTouchStart={handleActionA}
-            onTouchEnd={(e) => e.preventDefault()}
-            onClick={handleActionA}
-            aria-label="Action A - Interact"
+            onPointerDown={handleActionX}
+            onClick={handleActionX}
+            aria-label="X - Interact with Environment"
           >
-            A
+            X
           </button>
 
-          {/* B Button - Cancel */}
-          <button
-            type="button"
-            className="w-14 h-14 bg-red-600 border-2 border-red-300 rounded-full flex items-center justify-center text-white text-lg font-bold active:bg-red-500 select-none touch-none shadow-lg"
-            style={{
-              backgroundColor: "rgba(220, 38, 38, 0.95)",
-              borderColor: "rgba(252, 165, 165, 0.8)",
-            }}
-            onTouchStart={handleActionB}
-            onTouchEnd={(e) => e.preventDefault()}
-            onClick={handleActionB}
-            aria-label="Action B - Cancel"
-          >
-            B
-          </button>
-
-          {/* Start Button */}
+          {/* Start Button - Open Menu */}
           <button
             type="button"
             className="w-16 h-10 bg-blue-600 border-2 border-blue-300 rounded-lg flex items-center justify-center text-white text-xs font-bold active:bg-blue-500 select-none touch-none shadow-lg"
             style={{
               backgroundColor: "rgba(37, 99, 235, 0.95)",
               borderColor: "rgba(147, 197, 253, 0.8)",
+              touchAction: "none",
             }}
-            onTouchStart={handleStart}
-            onTouchEnd={(e) => e.preventDefault()}
+            onPointerDown={handleStart}
             onClick={handleStart}
-            aria-label="Start - Menu"
+            aria-label="Start - Open Menu"
           >
             START
           </button>

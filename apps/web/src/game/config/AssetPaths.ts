@@ -45,7 +45,6 @@ export const ASSET_PATHS = {
     pebble: "/assets/items/pebble.png",
     dust: "/assets/items/dust.png",
     log: "/assets/items/log.png",
-    crafting: "/assets/items/crafting.png",
     // Crafting stations
     workbench: "/assets/items/workbench.png",
     cooking_fire: "/assets/items/cooking-fire.png",

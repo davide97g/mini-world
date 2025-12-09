@@ -108,8 +108,7 @@ export class GameScene extends Phaser.Scene {
         "mobileDirectionChange",
         this.handleMobileDirectionChange,
       );
-      window.removeEventListener("mobileActionA", this.handleMobileActionA);
-      window.removeEventListener("mobileActionB", this.handleMobileActionB);
+      window.removeEventListener("mobileActionX", this.handleMobileActionX);
       window.removeEventListener("mobileStart", this.handleMobileStart);
     }
 
@@ -854,8 +853,7 @@ export class GameScene extends Phaser.Scene {
     // Bind handlers to preserve 'this' context
     this.handleMobileDirectionChange =
       this.handleMobileDirectionChange.bind(this);
-    this.handleMobileActionA = this.handleMobileActionA.bind(this);
-    this.handleMobileActionB = this.handleMobileActionB.bind(this);
+    this.handleMobileActionX = this.handleMobileActionX.bind(this);
     this.handleMobileStart = this.handleMobileStart.bind(this);
 
     // Listen for mobile control events
@@ -863,8 +861,7 @@ export class GameScene extends Phaser.Scene {
       "mobileDirectionChange",
       this.handleMobileDirectionChange,
     );
-    window.addEventListener("mobileActionA", this.handleMobileActionA);
-    window.addEventListener("mobileActionB", this.handleMobileActionB);
+    window.addEventListener("mobileActionX", this.handleMobileActionX);
     window.addEventListener("mobileStart", this.handleMobileStart);
   }
 
@@ -883,31 +880,36 @@ export class GameScene extends Phaser.Scene {
     }
   };
 
-  private handleMobileActionA = (): void => {
-    // Main action: start chat or interact
-    if (this.chatSystem?.isOpen()) return;
-    if (this.dialogSystem?.isVisible()) {
-      this.dialogSystem.handleAdvance();
-    } else if (
-      this.chatSystem?.getIsNearStatue() &&
-      !this.chatSystem.isOpen()
+  private handleMobileActionX = (): void => {
+    // X button: interact with environment (collect items, hit animals)
+    if (
+      this.chatSystem?.isOpen() ||
+      this.menuSystem?.isOpen() ||
+      this.dialogSystem?.isVisible() ||
+      this.inventorySystem?.isOpen()
     ) {
-      const canOpenCheck = this.chatSystem.getCanOpenChatCheck();
-      const canOpen = canOpenCheck ? canOpenCheck() : true;
-      if (canOpen) {
-        this.chatSystem.openChat();
-      }
+      return;
     }
-  };
 
-  private handleMobileActionB = (): void => {
-    // Secondary action: cancel actions
-    if (this.chatSystem?.isOpen()) {
-      this.chatSystem.closeChat();
-    } else if (this.dialogSystem?.isVisible()) {
-      this.dialogSystem.handleAdvance();
-    } else if (this.menuSystem?.isOpen()) {
-      this.menuSystem.toggleMenu();
+    // First check for animal interaction
+    const nearbyAnimal = this.animalSystem?.checkAnimalProximity();
+    if (nearbyAnimal) {
+      this.animalSystem?.hitAnimal(nearbyAnimal);
+      this.audioSystem?.playHitSound();
+      return;
+    }
+
+    // Then check for tile collection
+    const collectableData = this.collectionSystem?.checkTileProximity();
+    if (collectableData && this.collectionSystem && this.tileManagementSystem) {
+      this.collectionSystem.collectItem(
+        collectableData.itemId,
+        collectableData.tileX,
+        collectableData.tileY,
+        (tileX, tileY) => {
+          this.tileManagementSystem?.hideTile(tileX, tileY);
+        },
+      );
     }
   };
 
