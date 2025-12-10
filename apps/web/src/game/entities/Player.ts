@@ -18,6 +18,7 @@ export class Player {
   private scene: Phaser.Scene;
   private currentDirection?: string;
   private onPositionUpdate?: (x: number, y: number, direction?: string) => void;
+  private onStep?: () => void;
   private lastSentX: number = 0;
   private lastSentY: number = 0;
   private lastSentDirection?: string;
@@ -174,6 +175,11 @@ export class Player {
     // Normalize and scale the velocity so that player can't move faster along a diagonal
     this.sprite.body.velocity.normalize().scale(PLAYER_SPEED);
 
+    // Log step if player is moving
+    if (this.isMoving() && this.onStep) {
+      this.onStep();
+    }
+
     // Update the animation and direction
     // On horizontal stairs, prioritize vertical movement for animation
     if (isOnHorizontalStairs) {
@@ -255,6 +261,10 @@ export class Player {
     callback: (x: number, y: number, direction?: string) => void,
   ): void {
     this.onPositionUpdate = callback;
+  }
+
+  public setOnStep(callback: () => void): void {
+    this.onStep = callback;
   }
 
   public stop(): void {

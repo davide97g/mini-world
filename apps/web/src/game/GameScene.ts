@@ -12,6 +12,7 @@ import {
   MIN_SAVE_INTERVAL,
 } from "./config/GameConstants";
 import { Player } from "./entities/Player";
+import { logAnimalKill, logStep } from "./services/LoggingService";
 import {
   type GameSaveData,
   getCurrentWorldId,
@@ -450,6 +451,9 @@ export class GameScene extends Phaser.Scene {
       this.lootDispersionSystem?.disperseLoot(loot, x, y);
     });
 
+    // Set up logging callbacks after systems are initialized
+    this.setupLogging();
+
     // Spawn animals - herbivores in herds, predators scattered
     this.animalSystem.spawnAnimals([
       // Herbivores - spawn in herds
@@ -542,6 +546,31 @@ export class GameScene extends Phaser.Scene {
         stopSession(this.currentWorldId);
       }
     });
+  }
+
+  /**
+   * Set up logging callbacks for player steps and animal kills
+   */
+  private setupLogging(): void {
+    if (!this.currentWorldId) return;
+
+    // Set up step logging callback
+    if (this.player) {
+      this.player.setOnStep(() => {
+        if (this.currentWorldId) {
+          logStep(this.currentWorldId);
+        }
+      });
+    }
+
+    // Set up animal kill logging callback
+    if (this.animalSystem) {
+      this.animalSystem.setOnAnimalKillLogged((animalType) => {
+        if (this.currentWorldId) {
+          logAnimalKill(this.currentWorldId, animalType);
+        }
+      });
+    }
   }
 
   /**
@@ -797,6 +826,8 @@ export class GameScene extends Phaser.Scene {
     this.currentWorldId = worldId;
     setCurrentWorld(worldId);
     if (this.currentWorldId) {
+      // Set up logging for the new world
+      this.setupLogging();
       // Delay loading to ensure map is ready
       this.time.delayedCall(200, () => {
         if (this.currentWorldId) {

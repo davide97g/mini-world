@@ -121,6 +121,7 @@ export class AnimalSystem {
   // Callbacks
   private onAnimalKilled?: (loot: LootItem[]) => void; // Called when animal dies (to add items to inventory)
   private onDisperseLoot?: (loot: LootItem[], x: number, y: number) => void; // Called to disperse loot items
+  private onAnimalKillLogged?: (animalType: string) => void; // Called to log animal kill event
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -185,6 +186,13 @@ export class AnimalSystem {
     callback: (loot: LootItem[], x: number, y: number) => void,
   ): void {
     this.onDisperseLoot = callback;
+  }
+
+  /**
+   * Set callback for logging animal kills
+   */
+  public setOnAnimalKillLogged(callback: (animalType: string) => void): void {
+    this.onAnimalKillLogged = callback;
   }
 
   /**
@@ -641,6 +649,11 @@ export class AnimalSystem {
     if (animalData.isDead) return;
 
     animalData.isDead = true;
+
+    // Log animal kill
+    if (this.onAnimalKillLogged) {
+      this.onAnimalKillLogged(animalData.config.key);
+    }
 
     // Stop animation timer
     if (animalData.animationTimer) {

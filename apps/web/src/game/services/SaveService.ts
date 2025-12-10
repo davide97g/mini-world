@@ -84,6 +84,13 @@ export interface GameSaveData {
 
   // Energy state
   energy?: number; // Current energy value
+
+  // Game logs (optional for backward compatibility)
+  logs?: Array<{
+    type: string;
+    timestamp: number;
+    animalType?: string;
+  }>;
 }
 
 export interface WorldMetadata {
